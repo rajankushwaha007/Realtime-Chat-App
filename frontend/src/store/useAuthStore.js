@@ -13,6 +13,7 @@ export const useAuthStore = create((set, get) => ({
   isCheckingAuth: true,
   onlineUsers: [],
   socket: null,
+  userStatuses: {},
 
   checkAuth: async () => {
     try {
@@ -49,8 +50,7 @@ export const useAuthStore = create((set, get) => ({
       set({ authUser: res.data });
       toast.success("Logged in successfully");
 
-      get().connectSocket();
-    } catch (error) {
+      get().connectSocket(); h
       toast.error(error.response.data.message);
     } finally {
       set({ isLoggingIn: false });
@@ -97,6 +97,32 @@ export const useAuthStore = create((set, get) => ({
 
     socket.on("getOnlineUsers", (userIds) => {
       set({ onlineUsers: userIds });
+    });
+
+    socket.on("userStatusUpdated", ({ userId, isOnline, lastSeen }) => {
+      set((state) => ({
+        userStatuses: {
+          ...state.userStatuses,
+          [String(userId)]: {
+            isOnline,
+            lastSeen,
+          },
+        },
+      }));
+
+      socket.on("initialUserStatuses", (statuses) => {
+        set((state) => {
+          const updatedStatuses = { ...state.userStatuses };
+
+          statuses.forEach(({ userId, isOnline, lastSeen }) => {
+            updatedStatuses[String(userId)] = {
+              isOnline,
+              lastSeen,
+            };
+          });
+          return { userStatuses: updatedStatuses };
+        });
+      });
     });
   },
   disconnectSocket: () => {
