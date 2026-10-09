@@ -22,13 +22,29 @@ export const useChatStore = create((set, get) => ({
     }
   },
 
+
   getMessages: async (userId) => {
     set({ isMessagesLoading: true });
+
     try {
       const res = await axiosInstance.get(`/messages/${userId}`);
+
       set({ messages: res.data });
+
+      // Chat open hone par incoming messages Seen mark karo
+      const socket = useAuthStore.getState().socket;
+      const authUser = useAuthStore.getState().authUser;
+
+      if (socket && authUser) {
+        socket.emit("markMessagesSeen", {
+          senderId: userId,
+        });
+      }
     } catch (error) {
-      toast.error(error.response.data.message);
+      console.error("Get messages error:", error);
+      toast.error(
+        error.response?.data?.message || "Failed to load messages"
+      );
     } finally {
       set({ isMessagesLoading: false });
     }
@@ -43,26 +59,66 @@ export const useChatStore = create((set, get) => ({
     }
   },
 
+
   subscribeToMessages: () => {
     const { selectedUser } = get();
     if (!selectedUser) return;
 
     const socket = useAuthStore.getState().socket;
+    if (!socket) return;
+
+    socket.off("newMessage");
+    socket.off("messageStatusUpdated");
 
     socket.on("newMessage", (newMessage) => {
-      const isMessageSentFromSelectedUser = newMessage.senderId === selectedUser._id;
-      if (!isMessageSentFromSelectedUser) return;
+      const currentSelectedUser = get().selectedUser;
+      const currentUser = useAuthStore.getState().authUser;
 
-      set({
-        messages: [...get().messages, newMessage],
-      });
+      if (!currentUser) return;
+
+      const isFromSelectedUser =
+        String(newMessage.senderId) ===
+        String(currentSelectedUser?._id);
+
+      if (isFromSelectedUser) {
+        set((state) => ({
+          messages: state.messages.some(
+            (message) =>
+              String(message._id) === String(newMessage._id)
+          )
+            ? state.messages
+            : [...state.messages, newMessage],
+        }));
+
+        socket.emit("markMessagesSeen", {
+          senderId: newMessage.senderId,
+        });
+      } else {
+        socket.emit("messageDelivered", {
+          messageId: newMessage._id,
+        });
+      }
+    });
+
+    socket.on("messageStatusUpdated", ({ messageIds, status }) => {
+      const ids = (messageIds || []).map(String);
+
+      set((state) => ({
+        messages: state.messages.map((message) =>
+          ids.includes(String(message._id))
+            ? { ...message, status }
+            : message
+        ),
+      }));
     });
   },
 
   unsubscribeFromMessages: () => {
     const socket = useAuthStore.getState().socket;
-    socket.off("newMessage");
-  },
+    if (!socket) return;
 
+    socket.off("newMessage");
+    socket.off("messageStatusUpdated");
+  },
   setSelectedUser: (selectedUser) => set({ selectedUser }),
 }));

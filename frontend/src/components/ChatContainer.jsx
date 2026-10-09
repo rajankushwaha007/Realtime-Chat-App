@@ -80,6 +80,33 @@ const ChatContainer = () => {
                 />
               )}
               {message.text && <p>{message.text}</p>}
+
+              {String(message.senderId) === String(authUser._id) && (
+                <div className="flex justify-end items-center mt-1">
+                  {message.status === "seen" ? (
+                    <span
+                      className="text-blue-400 text-xs font-bold"
+                      title="Seen"
+                    >
+                      ✓✓
+                    </span>
+                  ) : message.status === "delivered" ? (
+                    <span
+                      className="text-gray-400 text-xs font-bold"
+                      title="Delivered"
+                    >
+                      ✓✓
+                    </span>
+                  ) : (
+                    <span
+                      className="text-gray-400 text-xs"
+                      title="Sent"
+                    >
+                      ✓
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         ))}
