@@ -7,6 +7,7 @@ export const useChatStore = create((set, get) => ({
   messages: [],
   users: [],
   selectedUser: null,
+  typingUsers: {},
   isUsersLoading: false,
   isMessagesLoading: false,
 
@@ -70,6 +71,27 @@ export const useChatStore = create((set, get) => ({
     socket.off("newMessage");
     socket.off("messageStatusUpdated");
 
+    socket.off("userTyping");
+    socket.off("userStoppedTyping");
+
+    socket.on("userTyping", ({ userId }) => {
+      set((state) => ({
+        typingUsers: {
+          ...state.typingUsers,
+          [String(userId)]: true,
+        },
+      }));
+    });
+
+    socket.on("userStoppedTyping", ({ userId }) => {
+      set((state) => ({
+        typingUsers: {
+          ...state.typingUsers,
+          [String(userId)]: false,
+        },
+      }));
+    });
+
     socket.on("newMessage", (newMessage) => {
       const currentSelectedUser = get().selectedUser;
       const currentUser = useAuthStore.getState().authUser;
@@ -119,6 +141,8 @@ export const useChatStore = create((set, get) => ({
 
     socket.off("newMessage");
     socket.off("messageStatusUpdated");
+    socket.off("userTyping");
+    socket.off("userStoppedTyping");
   },
   setSelectedUser: (selectedUser) => set({ selectedUser }),
 }));

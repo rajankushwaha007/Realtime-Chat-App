@@ -4,10 +4,10 @@ import { useAuthStore } from "../store/useAuthStore";
 import { useChatStore } from "../store/useChatStore";
 
 const ChatHeader = () => {
-  const { selectedUser, setSelectedUser } = useChatStore();
+  const { selectedUser, setSelectedUser, typingUsers } = useChatStore();
   const { onlineUsers, userStatuses } = useAuthStore();
 
-  const userId = String(selectedUser._id);
+  const isTyping = Boolean(typingUsers[userId]);
   const isOnline = onlineUsers.some(
     (id) => String(id) === userId
   );
@@ -53,8 +53,11 @@ const ChatHeader = () => {
           {/* User info */}
           <div>
             <h3 className="font-medium">{selectedUser.fullName}</h3>
-            <p className="text-sm text-base-content/70">
-              {getStatusText()}
+            <p
+              className={`text-sm ${isTyping ? "text-success font-medium" : "text-base-content/70"
+                }`}
+            >
+              {isTyping ? "typing..." : getStatusText()}
             </p>
           </div>
         </div>

@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { useChatStore } from "../store/useChatStore";
+import { useAuthStore } from "../store/useAuthStore";
 import { axiosInstance } from "../lib/axios";
 import {
   Image,
@@ -21,8 +22,39 @@ const MessageInput = () => {
   const [summary, setSummary] = useState("");
   const [isSummarizing, setIsSummarizing] = useState(false);
 
+
   const fileInputRef = useRef(null);
+  const typingTimerRef = useRef(null);
   const { sendMessage, selectedUser } = useChatStore();
+
+  const handleTyping = (value) => {
+    setText(value);
+
+    const socket = useAuthStore.getState().socket;
+    const receiverId = selectedUser?._id;
+
+    if (!socket || !receiverId) return;
+
+    if (value.trim()) {
+      socket.emit("typing", { receiverId });
+
+      if (typingTimerRef.current) {
+        clearTimeout(typingTimerRef.current);
+      }
+
+      typingTimerRef.current = setTimeout(() => {
+        socket.emit("stopTyping", { receiverId });
+        typingTimerRef.current = null;
+      }, 1500);
+    } else {
+      if (typingTimerRef.current) {
+        clearTimeout(typingTimerRef.current);
+        typingTimerRef.current = null;
+      }
+
+      socket.emit("stopTyping", { receiverId });
+    }
+  };
 
   const handleImageChange = (e) => {
     const file = e.target.files?.[0];
@@ -82,7 +114,7 @@ const MessageInput = () => {
 
       toast.error(
         error.response?.data?.message ||
-          "Failed to generate replies. Please try again."
+        "Failed to generate replies. Please try again."
       );
     } finally {
       setIsGenerating(false);
@@ -117,7 +149,7 @@ const MessageInput = () => {
 
       toast.error(
         error.response?.data?.message ||
-          "Failed to generate summary. Please try again."
+        "Failed to generate summary. Please try again."
       );
     } finally {
       setIsSummarizing(false);
@@ -266,7 +298,7 @@ const MessageInput = () => {
             className="w-full input input-bordered rounded-lg input-sm sm:input-md"
             placeholder="Type a message..."
             value={text}
-            onChange={(e) => setText(e.target.value)}
+            onChange={(e) => handleTyping(e.target.value)}
           />
 
           <input
@@ -280,9 +312,8 @@ const MessageInput = () => {
           <button
             type="button"
             aria-label="Attach image"
-            className={`hidden sm:flex btn btn-circle ${
-              imagePreview ? "text-emerald-500" : "text-zinc-400"
-            }`}
+            className={`hidden sm:flex btn btn-circle ${imagePreview ? "text-emerald-500" : "text-zinc-400"
+              }`}
             onClick={() => fileInputRef.current?.click()}
           >
             <Image size={20} />
