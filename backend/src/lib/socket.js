@@ -2,6 +2,7 @@ import { Server } from "socket.io";
 import http from "http";
 import express from "express";
 import Message from "../models/message.model.js";
+import User from "../models/user.model.js";
 
 const app = express();
 const server = http.createServer(app);
@@ -16,47 +17,102 @@ const io = new Server(server, {
   },
 });
 
-const userSocketMap = {};
+// One user can have multiple connected browser windows
+const userSocketMap = new Map();
 
 export function getReceiverSocketId(userId) {
-  return userSocketMap[userId];
+  const sockets = userSocketMap.get(String(userId));
+  return sockets?.size ? [...sockets] : null;
 }
 
-io.on("connection", (socket) => {
-  console.log("A user connected", socket.id);
+const getOnlineUserIds = () => [...userSocketMap.keys()];
 
+io.on("connection", async (socket) => {
   const userId = socket.handshake.query.userId;
+  if (!userId) return;
 
-  if (userId) {
-    userSocketMap[userId] = socket.id;
+  const id = String(userId);
+  let sockets = userSocketMap.get(id);
+  const wasOnline = Boolean(sockets?.size);
+
+  if (!sockets) sockets = new Set();
+  sockets.add(socket.id);
+  userSocketMap.set(id, sockets);
+
+  console.log("A user connected:", socket.id);
+
+  if (!wasOnline) {
+    try {
+      await User.findByIdAndUpdate(id, { lastSeen: null });
+    } catch (error) {
+      console.error("Online status error:", error.message);
+    }
+
+    io.emit("userStatusUpdated", {
+      userId: id,
+      isOnline: true,
+      lastSeen: null,
+    });
   }
 
-  io.emit("getOnlineUsers", Object.keys(userSocketMap));
+  io.emit("getOnlineUsers", getOnlineUserIds());
 
-  // Receiver confirms that a message reached their device
+  // Send current online status and last seen for all users
+  try {
+    const users = await User.find({}, "_id lastSeen").lean();
+
+    socket.emit(
+      "initialUserStatuses",
+      users.map((user) => ({
+        userId: String(user._id),
+        isOnline: userSocketMap.has(String(user._id)),
+        lastSeen: user.lastSeen,
+      }))
+    );
+  } catch (error) {
+    console.error("Initial user statuses error:", error.message);
+  }
+
+  // Message delivered
   socket.on("messageDelivered", async ({ messageId } = {}) => {
     try {
-      if (!userId || !messageId) return;
+      if (!messageId) return;
 
       const message = await Message.findById(messageId);
 
-      // Only the intended receiver can confirm delivery
-      if (!message || String(message.receiverId) !== String(userId)) {
+      if (
+        !message ||
+        String(message.receiverId) !== id
+      ) {
         return;
       }
 
       if (message.status === "sent") {
-        message.status = "delivered";
-        message.deliveredAt = new Date();
-        await message.save();
+        const updated = await Message.findOneAndUpdate(
+          { _id: messageId, status: "sent" },
+          {
+            $set: {
+              status: "delivered",
+              deliveredAt: new Date(),
+            },
+          },
+          { new: true }
+        );
+
+        if (updated) message.status = updated.status;
+        else {
+          const latest = await Message.findById(messageId);
+          if (!latest) return;
+          message.status = latest.status;
+        }
       }
 
-      const senderSocketId = getReceiverSocketId(
+      const senderSockets = getReceiverSocketId(
         String(message.senderId)
       );
 
-      if (senderSocketId) {
-        io.to(senderSocketId).emit("messageStatusUpdated", {
+      if (senderSockets) {
+        io.to(senderSockets).emit("messageStatusUpdated", {
           messageIds: [String(message._id)],
           status: message.status,
         });
@@ -66,14 +122,14 @@ io.on("connection", (socket) => {
     }
   });
 
-  // Receiver opens the conversation and marks messages as read
+  // Mark messages as seen
   socket.on("markMessagesSeen", async ({ senderId } = {}) => {
     try {
-      if (!userId || !senderId) return;
+      if (!senderId) return;
 
       const unreadMessages = await Message.find({
         senderId,
-        receiverId: userId,
+        receiverId: id,
         status: { $ne: "seen" },
       }).select("_id");
 
@@ -86,7 +142,8 @@ io.on("connection", (socket) => {
       await Message.updateMany(
         {
           _id: { $in: unreadMessages.map((message) => message._id) },
-          receiverId: userId,
+          receiverId: id,
+          status: { $ne: "seen" },
         },
         {
           $set: {
@@ -96,10 +153,10 @@ io.on("connection", (socket) => {
         }
       );
 
-      const senderSocketId = getReceiverSocketId(String(senderId));
+      const senderSockets = getReceiverSocketId(String(senderId));
 
-      if (senderSocketId) {
-        io.to(senderSocketId).emit("messageStatusUpdated", {
+      if (senderSockets) {
+        io.to(senderSockets).emit("messageStatusUpdated", {
           messageIds,
           status: "seen",
         });
@@ -109,15 +166,33 @@ io.on("connection", (socket) => {
     }
   });
 
-  socket.on("disconnect", () => {
-    console.log("A user disconnected", socket.id);
+  socket.on("disconnect", async () => {
+    console.log("A user disconnected:", socket.id);
 
-    // Don't remove a newer connection for the same user
-    if (userSocketMap[userId] === socket.id) {
-      delete userSocketMap[userId];
+    const currentSockets = userSocketMap.get(id);
+    if (!currentSockets) return;
+
+    currentSockets.delete(socket.id);
+
+    // Stay online if another window is still connected
+    if (currentSockets.size === 0) {
+      userSocketMap.delete(id);
+      const lastSeen = new Date();
+
+      try {
+        await User.findByIdAndUpdate(id, { lastSeen });
+      } catch (error) {
+        console.error("Last seen update error:", error.message);
+      }
+
+      io.emit("userStatusUpdated", {
+        userId: id,
+        isOnline: false,
+        lastSeen,
+      });
     }
 
-    io.emit("getOnlineUsers", Object.keys(userSocketMap));
+    io.emit("getOnlineUsers", getOnlineUserIds());
   });
 });
 
