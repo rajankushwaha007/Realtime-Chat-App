@@ -7,6 +7,7 @@ const ChatHeader = () => {
   const { selectedUser, setSelectedUser, typingUsers } = useChatStore();
   const { onlineUsers, userStatuses } = useAuthStore();
 
+  const userId = String(selectedUser._id);
   const isTyping = Boolean(typingUsers[userId]);
   const isOnline = onlineUsers.some(
     (id) => String(id) === userId
