@@ -57,6 +57,32 @@ io.on("connection", async (socket) => {
 
   io.emit("getOnlineUsers", getOnlineUserIds());
 
+  // Notify the other user when typing starts
+  socket.on("typing", ({ receiverId } = {}) => {
+    if (!receiverId || String(receiverId) === id) return;
+
+    const receiverSockets = getReceiverSocketId(String(receiverId));
+
+    if (receiverSockets) {
+      io.to(receiverSockets).emit("userTyping", {
+        userId: id,
+      });
+    }
+  });
+
+  // Notify the other user when typing stops
+  socket.on("stopTyping", ({ receiverId } = {}) => {
+    if (!receiverId || String(receiverId) === id) return;
+
+    const receiverSockets = getReceiverSocketId(String(receiverId));
+
+    if (receiverSockets) {
+      io.to(receiverSockets).emit("userStoppedTyping", {
+        userId: id,
+      });
+    }
+  });
+
   // Send current online status and last seen for all users
   try {
     const users = await User.find({}, "_id lastSeen").lean();
