@@ -12,8 +12,13 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 
+import EmojiPicker from "emoji-picker-react";
+import { Smile } from "lucide-react";
+
+
 const MessageInput = () => {
   const [text, setText] = useState("");
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [imagePreview, setImagePreview] = useState(null);
   const [suggestions, setSuggestions] = useState([]);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -292,7 +297,31 @@ const MessageInput = () => {
         onSubmit={handleSendMessage}
         className="flex items-center gap-2"
       >
-        <div className="flex-1 flex gap-2">
+
+        <div className="flex-1 flex gap-2 relative">
+          <button
+            type="button"
+            className="btn btn-circle btn-ghost btn-sm"
+            onClick={() => setShowEmojiPicker((prev) => !prev)}
+            aria-label="Open emoji picker"
+            title="Choose emoji"
+          >
+            <Smile size={22} />
+          </button>
+
+          {showEmojiPicker && (
+            <div className="absolute bottom-14 left-0 z-50">
+              <EmojiPicker
+                onEmojiClick={(emojiData) => {
+                  handleTyping(text + emojiData.emoji);
+                  setShowEmojiPicker(false);
+                }}
+                height={350}
+                width={300}
+              />
+            </div>
+          )}
+
           <input
             type="text"
             className="w-full input input-bordered rounded-lg input-sm sm:input-md"
@@ -319,6 +348,7 @@ const MessageInput = () => {
             <Image size={20} />
           </button>
         </div>
+
 
         <button
           type="submit"

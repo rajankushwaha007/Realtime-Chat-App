@@ -60,6 +60,66 @@ export const useChatStore = create((set, get) => ({
     }
   },
 
+  editMessage: async (messageId, text) => {
+    try {
+      const res = await axiosInstance.patch(
+        `/messages/edit/${messageId}`,
+        { text }
+      );
+
+      set((state) => ({
+        messages: state.messages.map((message) =>
+          String(message._id) === String(messageId)
+            ? res.data
+            : message
+        ),
+      }));
+
+      toast.success("Message edited successfully");
+    } catch (error) {
+      toast.error(
+        error.response?.data?.message || "Failed to edit message"
+      );
+    }
+  },
+
+  deleteMessage: async (messageId) => {
+    try {
+      await axiosInstance.delete(`/messages/delete/${messageId}`);
+
+      set((state) => ({
+        messages: state.messages.filter(
+          (message) => String(message._id) !== String(messageId)
+        ),
+      }));
+
+      toast.success("Message deleted successfully");
+    } catch (error) {
+      toast.error(
+        error.response?.data?.message || "Failed to delete message"
+      );
+    }
+  },
+
+  deleteMessageForMe: async (messageId) => {
+    try {
+      await axiosInstance.patch(
+        `/messages/delete-for-me/${messageId}`
+      );
+
+      set((state) => ({
+        messages: state.messages.filter(
+          (message) => String(message._id) !== String(messageId)
+        ),
+      }));
+
+      toast.success("Message deleted for you");
+    } catch (error) {
+      toast.error(
+        error.response?.data?.message || "Failed to delete message"
+      );
+    }
+  },
 
   subscribeToMessages: () => {
     const { selectedUser } = get();
@@ -70,7 +130,9 @@ export const useChatStore = create((set, get) => ({
 
     socket.off("newMessage");
     socket.off("messageStatusUpdated");
-
+    socket.off("messageReactionUpdated");
+    socket.off("messageEdited");
+    socket.off("messageDeleted");
     socket.off("userTyping");
     socket.off("userStoppedTyping");
 
@@ -133,6 +195,34 @@ export const useChatStore = create((set, get) => ({
         ),
       }));
     });
+
+    socket.on("messageReactionUpdated", ({ messageId, reactions }) => {
+      set((state) => ({
+        messages: state.messages.map((message) =>
+          String(message._id) === String(messageId)
+            ? { ...message, reactions }
+            : message
+        ),
+      }));
+    });
+
+    socket.on("messageEdited", (updatedMessage) => {
+      set((state) => ({
+        messages: state.messages.map((message) =>
+          String(message._id) === String(updatedMessage._id)
+            ? updatedMessage
+            : message
+        ),
+      }));
+    });
+
+    socket.on("messageDeleted", ({ messageId }) => {
+      set((state) => ({
+        messages: state.messages.filter(
+          (message) => String(message._id) !== String(messageId)
+        ),
+      }));
+    });
   },
 
   unsubscribeFromMessages: () => {
@@ -141,8 +231,12 @@ export const useChatStore = create((set, get) => ({
 
     socket.off("newMessage");
     socket.off("messageStatusUpdated");
+    socket.off("messageReactionUpdated");
+    socket.off("messageEdited");
+    socket.off("messageDeleted");
     socket.off("userTyping");
     socket.off("userStoppedTyping");
   },
+
   setSelectedUser: (selectedUser) => set({ selectedUser }),
 }));
