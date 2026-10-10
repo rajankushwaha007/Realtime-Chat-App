@@ -11,12 +11,39 @@ const messageSchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
+
+    deletedFor: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+    ],
     text: {
       type: String,
+    },
+    edited: {
+      type: Boolean,
+      default: false,
     },
     image: {
       type: String,
     },
+
+    // Emoji reactions on messages
+    reactions: [
+      {
+        userId: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User",
+          required: true,
+        },
+        emoji: {
+          type: String,
+          required: true,
+        },
+      },
+    ],
+
 
     // Message delivery and read status
     status: {

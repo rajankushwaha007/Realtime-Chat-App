@@ -99,6 +99,64 @@ io.on("connection", async (socket) => {
     console.error("Initial user statuses error:", error.message);
   }
 
+  // Add or update a reaction on a message
+  socket.on("messageReaction", async ({ messageId, emoji } = {}) => {
+    try {
+      if (!messageId || typeof emoji !== "string") return;
+
+      const allowedEmojis = ["❤️", "😂", "👍", "😮", "😢", "🔥"];
+
+      if (!allowedEmojis.includes(emoji)) return;
+
+      const message = await Message.findById(messageId);
+      if (!message) return;
+
+      const senderId = String(message.senderId);
+      const receiverId = String(message.receiverId);
+
+      // Only participants in this conversation can react
+      if (id !== senderId && id !== receiverId) return;
+
+      const existingReaction = message.reactions.find(
+        (reaction) => String(reaction.userId) === id
+      );
+
+      if (existingReaction) {
+        if (existingReaction.emoji === emoji) {
+          message.reactions = message.reactions.filter(
+            (reaction) => String(reaction.userId) !== id
+          );
+        } else {
+          existingReaction.emoji = emoji;
+        }
+      } else {
+        message.reactions.push({ userId: id, emoji });
+      }
+
+      await message.save();
+
+      const participantSockets = [
+        ...new Set([
+          ...(getReceiverSocketId(senderId) || []),
+          ...(getReceiverSocketId(receiverId) || []),
+        ]),
+      ];
+
+      if (participantSockets.length > 0) {
+        io.to(participantSockets).emit("messageReactionUpdated", {
+          messageId: String(message._id),
+          reactions: message.reactions.map((reaction) => ({
+            userId: String(reaction.userId),
+            emoji: reaction.emoji,
+          })),
+        });
+      }
+    } catch (error) {
+      console.error("Message reaction error:", error.message);
+    }
+  });
+
+
   // Message delivered
   socket.on("messageDelivered", async ({ messageId } = {}) => {
     try {
