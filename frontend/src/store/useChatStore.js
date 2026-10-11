@@ -184,13 +184,17 @@ export const useChatStore = create((set, get) => ({
       }
     });
 
-    socket.on("messageStatusUpdated", ({ messageIds, status }) => {
+    socket.on("messageStatusUpdated", ({ messageIds, status, seenAt }) => {
       const ids = (messageIds || []).map(String);
 
       set((state) => ({
         messages: state.messages.map((message) =>
           ids.includes(String(message._id))
-            ? { ...message, status }
+            ? {
+              ...message,
+              status,
+              ...(status === "seen" && seenAt ? { seenAt } : {}),
+            }
             : message
         ),
       }));

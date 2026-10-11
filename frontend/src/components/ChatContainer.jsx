@@ -259,29 +259,40 @@ const ChatContainer = () => {
                   </>
                 )}
 
-
                 {isOwnMessage && (
-                  <div className="flex justify-end items-center mt-1">
-                    {message.status === "seen" ? (
-                      <span
-                        className="text-blue-400 text-xs font-bold"
-                        title="Seen"
-                      >
-                        ✓✓
-                      </span>
-                    ) : message.status === "delivered" ? (
-                      <span
-                        className="text-gray-400 text-xs font-bold"
-                        title="Delivered"
-                      >
-                        ✓✓
-                      </span>
-                    ) : (
-                      <span
-                        className="text-gray-400 text-xs"
-                        title="Sent"
-                      >
-                        ✓
+                  <div className="flex flex-col items-end mt-1">
+                    <div className="flex justify-end items-center">
+                      {message.status === "seen" ? (
+                        <span
+                          className="text-blue-400 text-xs font-bold"
+                          title="Seen"
+                        >
+                          ✓✓
+                        </span>
+                      ) : message.status === "delivered" ? (
+                        <span
+                          className="text-gray-400 text-xs font-bold"
+                          title="Delivered"
+                        >
+                          ✓✓
+                        </span>
+                      ) : (
+                        <span
+                          className="text-gray-400 text-xs"
+                          title="Sent"
+                        >
+                          ✓
+                        </span>
+                      )}
+                    </div>
+
+                    {message.status === "seen" && message.seenAt && (
+                      <span className="text-[10px] text-blue-400 opacity-80 mt-0.5">
+                        Seen at{" "}
+                        {new Date(message.seenAt).toLocaleTimeString([], {
+                          hour: "numeric",
+                          minute: "2-digit",
+                        })}
                       </span>
                     )}
                   </div>
@@ -291,7 +302,8 @@ const ChatContainer = () => {
               {activeMessageMenu === message._id && (
                 <div
 
-                  className="absolute z-50 left-0 top-full mt-1 flex flex-wrap gap-2 justify-start rounded-lg bg-base-100 p-2 shadow-lg"
+                  className={`absolute z-50 top-full mt-1 flex flex-wrap gap-2 rounded-lg bg-base-100 p-2 shadow-lg ${isOwnMessage ? "right-0 justify-end" : "left-0 justify-start"
+                    }`}
 
                   onClick={(e) => e.stopPropagation()}
                 >
