@@ -223,6 +223,9 @@ io.on("connection", async (socket) => {
         String(message._id)
       );
 
+      // Use the same timestamp for the database and real-time event
+      const seenAt = new Date();
+
       await Message.updateMany(
         {
           _id: { $in: unreadMessages.map((message) => message._id) },
@@ -232,7 +235,7 @@ io.on("connection", async (socket) => {
         {
           $set: {
             status: "seen",
-            seenAt: new Date(),
+            seenAt,
           },
         }
       );
@@ -243,6 +246,7 @@ io.on("connection", async (socket) => {
         io.to(senderSockets).emit("messageStatusUpdated", {
           messageIds,
           status: "seen",
+          seenAt,
         });
       }
     } catch (error) {
