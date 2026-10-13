@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { useChatStore } from "../store/useChatStore";
 import { useAuthStore } from "../store/useAuthStore";
 import SidebarSkeleton from "./skeletons/SidebarSkeleton";
-import { Users } from "lucide-react";
+import { Users, StickyNote, MessageCircle } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 const Sidebar = () => {
   const { getUsers, users, selectedUser, setSelectedUser, isUsersLoading } = useChatStore();
@@ -17,11 +18,30 @@ const Sidebar = () => {
   const filteredUsers = showOnlineOnly
     ? users.filter((user) => onlineUsers.includes(user._id))
     : users;
+  const navigate = useNavigate();
 
   if (isUsersLoading) return <SidebarSkeleton />;
 
   return (
     <aside className="h-full w-20 lg:w-72 border-r border-base-300 flex flex-col transition-all duration-200">
+      {/* Navigation Buttons */}
+      <div className="border-b border-base-300 p-3 space-y-2">
+        <button
+          onClick={() => navigate("/notes")}
+          className="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-base-300 transition-colors"
+        >
+          <StickyNote className="size-5 shrink-0" />
+          <span className="hidden lg:inline">Personal Notes</span>
+        </button>
+
+        <button
+          onClick={() => navigate("/")}
+          className="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-base-300 transition-colors"
+        >
+          <MessageCircle className="size-5 shrink-0" />
+          <span className="hidden lg:inline">Back to Chat</span>
+        </button>
+      </div>
       <div className="border-b border-base-300 w-full p-5">
         <div className="flex items-center gap-2">
           <Users className="size-6" />
@@ -84,4 +104,5 @@ const Sidebar = () => {
     </aside>
   );
 };
+
 export default Sidebar;
