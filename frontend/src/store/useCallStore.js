@@ -8,6 +8,7 @@ const createCallId = () =>
 
 const useCallStore = create((set, get) => ({
     callStatus: "idle",
+    callStartedAt: null,
     callType: "audio",
     callId: null,
     peerUserId: null,
@@ -50,18 +51,21 @@ const useCallStore = create((set, get) => ({
             }
         };
 
-        pc.onconnectionstatechange = () => {
-            if (pc.connectionState === "connected") {
-                set({ callStatus: "active" });
-            }
+pc.onconnectionstatechange = () => {
+    if (pc.connectionState === "connected") {
+        set((state) => ({
+            callStatus: "active",
+            callStartedAt: state.callStartedAt || Date.now(),
+        }));
+    }
 
-            if (
-                ["failed", "closed"].includes(pc.connectionState) &&
-                get().callStatus !== "idle"
-            ) {
-                get().cleanupCall();
-            }
-        };
+    if (
+        ["failed", "closed"].includes(pc.connectionState) &&
+        get().callStatus !== "idle"
+    ) {
+        get().cleanupCall();
+    }
+};
 
         set({ peerConnection: pc });
 
@@ -275,6 +279,7 @@ const useCallStore = create((set, get) => ({
             pendingCandidates: [],
             isMuted: false,
             isCameraOff: false,
+            callStartedAt: null,
         });
     },
 
