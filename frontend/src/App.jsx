@@ -19,9 +19,14 @@ import { Toaster } from "react-hot-toast";
 const App = () => {
   const { authUser, checkAuth, isCheckingAuth, onlineUsers } = useAuthStore();
   const { theme } = useThemeStore();
+
   const [isPhoneVerified, setIsPhoneVerified] = useState(false);
 
-  console.log({ onlineUsers });
+  console.log("AUTH CHECK:", {
+    authUser,
+    isPhoneVerified,
+    isCheckingAuth,
+  });
 
   useEffect(() => {
     checkAuth();
@@ -44,13 +49,9 @@ const App = () => {
         <Route
           path="/phone-otp"
           element={
-            authUser ? (
-              <Navigate to="/" replace />
-            ) : (
-              <PhoneOTPPage
-                onVerified={() => setIsPhoneVerified(true)}
-              />
-            )
+            <PhoneOTPPage
+              onVerified={() => setIsPhoneVerified(true)}
+            />
           }
         />
 
