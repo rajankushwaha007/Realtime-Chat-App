@@ -7,6 +7,8 @@ import SettingsPage from "./pages/SettingsPage";
 import ProfilePage from "./pages/ProfilePage";
 import NotesPage from "./pages/NotesPage";
 import PhoneOTPPage from "./pages/PhoneOTPPage";
+import { useCallStore } from "./store/useCallStore";
+import CallOverlay from "./components/CallOverlay";
 
 import { Routes, Route, Navigate } from "react-router-dom";
 import { useAuthStore } from "./store/useAuthStore";
@@ -28,9 +30,18 @@ const App = () => {
     isCheckingAuth,
   });
 
+  const socket = useAuthStore((state) => state.socket);
+  const setupCallListeners = useCallStore(
+    (state) => state.setupCallListeners
+  );
   useEffect(() => {
     checkAuth();
   }, [checkAuth]);
+  useEffect(() => {
+    if (!socket) return;
+
+    setupCallListeners(socket);
+  }, [socket, setupCallListeners]);
 
   console.log({ authUser });
 
@@ -136,6 +147,7 @@ const App = () => {
           element={authUser ? <NotesPage /> : <Navigate to="/phone-otp" replace />}
         />
       </Routes>
+      <CallOverlay />
       <Toaster />
     </div>
   );
