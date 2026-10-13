@@ -254,6 +254,98 @@ io.on("connection", async (socket) => {
     }
   });
 
+  // ================= CALL SIGNALING =================
+
+  // Start an audio or video call
+  socket.on("callUser", async ({ toUserId, offer, callType, callId } = {}) => {
+    try {
+      if (
+        !toUserId ||
+        String(toUserId) === id ||
+        !offer ||
+        !["audio", "video"].includes(callType) ||
+        typeof callId !== "string"
+      ) {
+        return;
+      }
+
+      const receiverSockets = getReceiverSocketId(String(toUserId));
+
+      if (!receiverSockets) {
+        socket.emit("callUnavailable", { callId });
+        return;
+      }
+
+      const caller = await User.findById(id).select("fullName");
+
+      io.to(receiverSockets).emit("incomingCall", {
+        callId,
+        fromUserId: id,
+        fromName: caller?.fullName || "Chat user",
+        offer,
+        callType,
+      });
+    } catch (error) {
+      console.error("Start call error:", error.message);
+    }
+  });
+
+  // Receiver accepts the call
+  socket.on("answerCall", ({ toUserId, answer, callId } = {}) => {
+    if (!toUserId || !answer || typeof callId !== "string") return;
+
+    const receiverSockets = getReceiverSocketId(String(toUserId));
+    if (!receiverSockets) return;
+
+    io.to(receiverSockets).emit("callAccepted", {
+      callId,
+      fromUserId: id,
+      answer,
+    });
+  });
+
+  // Relay WebRTC ICE candidates
+  socket.on("iceCandidate", ({ toUserId, candidate, callId } = {}) => {
+    if (!toUserId || !candidate || typeof callId !== "string") return;
+
+    const receiverSockets = getReceiverSocketId(String(toUserId));
+    if (!receiverSockets) return;
+
+    io.to(receiverSockets).emit("iceCandidate", {
+      callId,
+      fromUserId: id,
+      candidate,
+    });
+  });
+
+  // Reject an incoming call
+  socket.on("rejectCall", ({ toUserId, callId } = {}) => {
+    if (!toUserId || typeof callId !== "string") return;
+
+    const receiverSockets = getReceiverSocketId(String(toUserId));
+    if (!receiverSockets) return;
+
+    io.to(receiverSockets).emit("callRejected", {
+      callId,
+      fromUserId: id,
+    });
+  });
+
+  // End an active call
+  socket.on("endCall", ({ toUserId, callId } = {}) => {
+    if (!toUserId || typeof callId !== "string") return;
+
+    const receiverSockets = getReceiverSocketId(String(toUserId));
+    if (!receiverSockets) return;
+
+    io.to(receiverSockets).emit("callEnded", {
+      callId,
+      fromUserId: id,
+    });
+  });
+
+  // ================= END CALL SIGNALING =================
+
   socket.on("disconnect", async () => {
     console.log("A user disconnected:", socket.id);
 
