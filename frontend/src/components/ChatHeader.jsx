@@ -64,11 +64,10 @@ const ChatHeader = () => {
             </h3>
 
             <p
-              className={`truncate text-sm ${
-                isTyping
+              className={`truncate text-sm ${isTyping
                   ? "font-medium text-success"
                   : "text-base-content/70"
-              }`}
+                }`}
             >
               {getStatusText()}
             </p>
