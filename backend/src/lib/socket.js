@@ -276,15 +276,18 @@ io.on("connection", async (socket) => {
         return;
       }
 
-      const caller = await User.findById(id).select("fullName");
+
+      const caller = await User.findById(id).select("fullName profilePic");
 
       io.to(receiverSockets).emit("incomingCall", {
         callId,
         fromUserId: id,
         fromName: caller?.fullName || "Chat user",
+        fromProfilePic: caller?.profilePic || "",
         offer,
         callType,
       });
+
     } catch (error) {
       console.error("Start call error:", error.message);
     }
