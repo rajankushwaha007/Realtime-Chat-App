@@ -6,6 +6,9 @@ import LoginPage from "./pages/LoginPage";
 import SettingsPage from "./pages/SettingsPage";
 import ProfilePage from "./pages/ProfilePage";
 import NotesPage from "./pages/NotesPage";
+import StatusPage from "./pages/StatusPage";
+import CommunityPage from "./pages/CommunityPage";
+import CallsPage from "./pages/CallsPage";
 import PhoneOTPPage from "./pages/PhoneOTPPage";
 import { useCallStore } from "./store/useCallStore";
 import CallOverlay from "./components/CallOverlay";
@@ -65,7 +68,22 @@ const App = () => {
             />
           }
         />
-
+        <Route
+          path="/status"
+          element={authUser ? <StatusPage /> : <Navigate to="/phone-otp" replace />}
+        />
+        <Route
+          path="/community"
+          element={
+            authUser ? <CommunityPage /> : <Navigate to="/phone-otp" replace />
+          }
+        />
+        <Route
+          path="/calls"
+          element={
+            authUser ? <CallsPage /> : <Navigate to="/phone-otp" replace />
+          }
+        />
         <Route
           path="/"
           element={

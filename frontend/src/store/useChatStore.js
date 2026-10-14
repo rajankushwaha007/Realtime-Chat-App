@@ -50,13 +50,46 @@ export const useChatStore = create((set, get) => ({
       set({ isMessagesLoading: false });
     }
   },
+
   sendMessage: async (messageData) => {
-    const { selectedUser, messages } = get();
+    const { selectedUser } = get();
+    if (!selectedUser) return;
+
     try {
-      const res = await axiosInstance.post(`/messages/send/${selectedUser._id}`, messageData);
-      set({ messages: [...messages, res.data] });
+      const res = await axiosInstance.post(
+        `/messages/send/${selectedUser._id}`,
+        messageData
+      );
+
+      const message = res.data;
+
+      set((state) => ({
+        messages: [...state.messages, message],
+
+        users: state.users
+          .map((user) =>
+            String(user._id) === String(selectedUser._id)
+              ? {
+                ...user,
+                lastMessage: {
+                  text: message.text || "",
+                  image: message.image || "",
+                  createdAt: message.createdAt,
+                },
+                lastMessageAt: message.createdAt,
+              }
+              : user
+          )
+          .sort(
+            (a, b) =>
+              new Date(b.lastMessageAt || 0).getTime() -
+              new Date(a.lastMessageAt || 0).getTime()
+          ),
+      }));
     } catch (error) {
-      toast.error(error.response.data.message);
+      toast.error(
+        error.response?.data?.message || "Failed to send message"
+      );
     }
   },
 
@@ -154,15 +187,44 @@ export const useChatStore = create((set, get) => ({
       }));
     });
 
+
     socket.on("newMessage", (newMessage) => {
       const currentSelectedUser = get().selectedUser;
       const currentUser = useAuthStore.getState().authUser;
 
       if (!currentUser) return;
 
-      const isFromSelectedUser =
-        String(newMessage.senderId) ===
-        String(currentSelectedUser?._id);
+      const senderId = String(newMessage.senderId);
+      const selectedId = String(currentSelectedUser?._id);
+      const isFromSelectedUser = senderId === selectedId;
+
+      // Update sidebar preview and move latest conversation to top
+      set((state) => ({
+        users: state.users
+          .map((user) =>
+            String(user._id) === senderId
+              ? {
+                ...user,
+                lastMessage: {
+                  text: newMessage.text || "",
+                  image: newMessage.image || "",
+                  createdAt: newMessage.createdAt,
+                },
+                lastMessageAt: newMessage.createdAt,
+
+                // Don't count messages in the currently open chat
+                unreadCount: isFromSelectedUser
+                  ? 0
+                  : (user.unreadCount || 0) + 1,
+              }
+              : user
+          )
+          .sort(
+            (a, b) =>
+              new Date(b.lastMessageAt || 0).getTime() -
+              new Date(a.lastMessageAt || 0).getTime()
+          ),
+      }));
 
       if (isFromSelectedUser) {
         set((state) => ({
@@ -242,5 +304,16 @@ export const useChatStore = create((set, get) => ({
     socket.off("userStoppedTyping");
   },
 
-  setSelectedUser: (selectedUser) => set({ selectedUser }),
+
+  setSelectedUser: (selectedUser) => {
+    set((state) => ({
+      selectedUser,
+      users: state.users.map((user) =>
+        String(user._id) === String(selectedUser?._id)
+          ? { ...user, unreadCount: 0 }
+          : user
+      ),
+    }));
+  },
+
 }));

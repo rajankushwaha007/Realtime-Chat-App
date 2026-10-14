@@ -5,6 +5,7 @@ import cors from "cors";
 import aiRoutes from "./routes/ai.route.js";
 import path from "path";
 import noteRoutes from "./routes/note.route.js";
+import statusRoutes from "./routes/status.route.js";
 
 import { connectDB } from "./lib/db.js";
 import authRoutes from "./routes/auth.route.js";
@@ -35,6 +36,7 @@ app.use("/api/ai", aiRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/messages", messageRoutes);
 app.use("/api/notes", noteRoutes);
+app.use("/api/statuses", statusRoutes);
 
 // Serve frontend in production
 if (process.env.NODE_ENV === "production") {

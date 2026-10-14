@@ -4,17 +4,123 @@ import Message from "../models/message.model.js";
 import cloudinary from "../lib/cloudinary.js";
 import { getReceiverSocketId, io } from "../lib/socket.js";
 
+
 export const getUsersForSidebar = async (req, res) => {
   try {
     const loggedInUserId = req.user._id;
-    const filteredUsers = await User.find({
-      _id: { $ne: loggedInUserId },
-    }).select("-password");
 
-    res.status(200).json(filteredUsers);
+    const users = await User.find({
+      _id: { $ne: loggedInUserId },
+    })
+      .select("-password")
+      .lean();
+
+    // Har user ke unread messages count karo
+    const unreadCounts = await Message.aggregate([
+      {
+        $match: {
+          receiverId: loggedInUserId,
+          status: { $ne: "seen" },
+          deletedFor: { $ne: loggedInUserId },
+        },
+      },
+      {
+        $group: {
+          _id: "$senderId",
+          count: { $sum: 1 },
+        },
+      },
+    ]);
+
+    // Har conversation ka latest message find karo
+    const latestMessages = await Message.aggregate([
+      {
+        $match: {
+          deletedFor: { $ne: loggedInUserId },
+          $or: [
+            { senderId: loggedInUserId },
+            { receiverId: loggedInUserId },
+          ],
+        },
+      },
+      { $sort: { createdAt: -1 } },
+      {
+        $project: {
+          senderId: 1,
+          receiverId: 1,
+          text: 1,
+          image: 1,
+          createdAt: 1,
+        },
+      },
+      {
+        $addFields: {
+          otherUserId: {
+            $cond: [
+              { $eq: ["$senderId", loggedInUserId] },
+              "$receiverId",
+              "$senderId",
+            ],
+          },
+        },
+      },
+      {
+        $group: {
+          _id: "$otherUserId",
+          lastMessage: { $first: "$$ROOT" },
+        },
+      },
+    ]);
+
+    const unreadMap = new Map(
+      unreadCounts.map((item) => [
+        String(item._id),
+        item.count,
+      ])
+    );
+
+    const latestMap = new Map(
+      latestMessages.map((item) => [
+        String(item._id),
+        item.lastMessage,
+      ])
+    );
+
+    const enrichedUsers = users.map((user) => {
+      const lastMessage = latestMap.get(String(user._id));
+
+      return {
+        ...user,
+        unreadCount: unreadMap.get(String(user._id)) || 0,
+        lastMessage: lastMessage
+          ? {
+              text: lastMessage.text || "",
+              image: lastMessage.image || "",
+              createdAt: lastMessage.createdAt,
+            }
+          : null,
+        lastMessageAt: lastMessage?.createdAt || null,
+      };
+    });
+
+    // Recent conversation first; users without messages go below
+    enrichedUsers.sort((a, b) => {
+      const timeA = a.lastMessageAt
+        ? new Date(a.lastMessageAt).getTime()
+        : 0;
+      const timeB = b.lastMessageAt
+        ? new Date(b.lastMessageAt).getTime()
+        : 0;
+
+      return timeB - timeA;
+    });
+
+    res.status(200).json(enrichedUsers);
   } catch (error) {
     console.error("Error in getUsersForSidebar:", error.message);
-    res.status(500).json({ error: "Internal server error" });
+    res.status(500).json({
+      error: "Internal server error",
+    });
   }
 };
 

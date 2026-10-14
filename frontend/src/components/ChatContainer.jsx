@@ -25,6 +25,7 @@ const ChatContainer = () => {
 
   const { authUser } = useAuthStore();
   const messageEndRef = useRef(null);
+  const shouldAutoScrollRef = useRef(true);
 
   const [activeReactionMessage, setActiveReactionMessage] = useState(null);
   const [showFullReactionPicker, setShowFullReactionPicker] = useState(null);
@@ -35,14 +36,21 @@ const ChatContainer = () => {
 
   const longPressTimer = useRef(null);
   const longPressTriggered = useRef(false);
+  const messagesContainerRef = useRef(null);
 
   const startLongPress = (messageId) => {
     longPressTriggered.current = false;
 
     longPressTimer.current = setTimeout(() => {
       longPressTriggered.current = true;
+
+      // Show Edit/Delete menu
       setActiveMessageMenu(messageId);
-      setActiveReactionMessage(null);
+
+      // Show emoji reactions for the same message
+      setActiveReactionMessage(messageId);
+
+      setShowFullReactionPicker(null);
     }, 1000);
   };
 
@@ -52,8 +60,6 @@ const ChatContainer = () => {
       longPressTimer.current = null;
     }
   };
-
-
 
   const reactionEmojis = ["❤️", "😂", "👍", "😮", "😢", "🔥"];
 
@@ -104,8 +110,11 @@ const ChatContainer = () => {
   ]);
 
   useEffect(() => {
-    if (messageEndRef.current) {
-      messageEndRef.current.scrollIntoView({ behavior: "smooth" });
+    if (shouldAutoScrollRef.current && messageEndRef.current) {
+      messageEndRef.current.scrollIntoView({
+        behavior: "smooth",
+        block: "end",
+      });
     }
   }, [messages]);
 
@@ -129,7 +138,7 @@ const ChatContainer = () => {
 
   if (isMessagesLoading) {
     return (
-      <div className="flex-1 flex flex-col overflow-auto">
+      <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
         <ChatHeader />
         <MessageSkeleton />
         <MessageInput />
@@ -138,10 +147,33 @@ const ChatContainer = () => {
   }
 
   return (
-    <div className="flex-1 flex flex-col overflow-auto">
-      <ChatHeader />
+    <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
+      <div
+        style={{
+          display: "flex",
+          visibility: "visible",
+          opacity: 1,
+          position: "relative",
+          zIndex: 9999,
+          minHeight: "64px",
+          flexShrink: 0,
+          background: "#ffffff",
+          color: "#111111",
+          width: "100%",
+        }}
+      >
+        <ChatHeader />
+      </div>
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div
+        ref={messagesContainerRef}
+        onScroll={(e) => {
+          const el = e.currentTarget;
+          shouldAutoScrollRef.current =
+            el.scrollHeight - el.scrollTop - el.clientHeight < 100;
+        }}
+        className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain p-4 space-y-4"
+      >
         {messages.map((message) => {
           const isOwnMessage =
             String(message.senderId) === String(authUser?._id);
@@ -169,7 +201,7 @@ const ChatContainer = () => {
           return (
             <div
               key={message._id}
-              className={`chat relative ${isOwnMessage ? "chat-end" : "chat-start"}`}
+              className={`chat relative ${isOwnMessage ? "chat-end" : "chat-start"} overflow-visible`}
               ref={messageEndRef}
             >
 
@@ -196,7 +228,15 @@ const ChatContainer = () => {
 
               <div
                 className="chat-bubble flex flex-col select-none"
-                style={{ touchAction: "pan-y", overflowWrap: "anywhere" }}
+                style={{
+                  touchAction: "pan-y",
+                  overflowWrap: "anywhere",
+                  userSelect: "none",
+                  WebkitUserSelect: "none",
+                  WebkitTouchCallout: "none",
+                  WebkitTapHighlightColor: "transparent",
+                }}
+                onClick={(e) => e.stopPropagation()}
                 onMouseDown={() => startLongPress(message._id)}
                 onMouseUp={cancelLongPress}
                 onMouseLeave={cancelLongPress}
@@ -206,8 +246,6 @@ const ChatContainer = () => {
                 onContextMenu={(e) => e.preventDefault()}
                 draggable={false}
               >
-
-
                 {message.image && (
                   <img
                     src={message.image}
@@ -391,7 +429,8 @@ const ChatContainer = () => {
               {/* Reaction picker: only visible after long press */}
               {activeReactionMessage === message._id && (
                 <div
-                  className="flex flex-wrap items-center gap-1 p-2 rounded-lg bg-base-200 shadow-md mt-1"
+                  className={`absolute z-50 bottom-full mb-2 flex flex-wrap items-center gap-1 p-2 rounded-lg bg-base-200 shadow-md max-w-[min(320px,90vw)] ${isOwnMessage ? "right-0" : "left-0"
+                    }`}
                   onClick={(e) => e.stopPropagation()}
                 >
                   {reactionEmojis.map((emoji) => (

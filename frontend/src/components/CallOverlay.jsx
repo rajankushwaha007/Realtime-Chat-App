@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Phone,
   PhoneOff,
@@ -15,7 +15,6 @@ const CallOverlay = () => {
     callStatus,
     callType,
     peerName,
-    incomingOffer,
     localStream,
     remoteStream,
     isMuted,
@@ -29,23 +28,79 @@ const CallOverlay = () => {
 
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
+  const remoteAudioRef = useRef(null);
 
-  useEffect(() => {
-    if (localVideoRef.current && localStream) {
-      localVideoRef.current.srcObject = localStream;
-    }
-  }, [localStream]);
-
-  useEffect(() => {
-    if (remoteVideoRef.current && remoteStream) {
-      remoteVideoRef.current.srcObject = remoteStream;
-    }
-  }, [remoteStream]);
-
-  if (callStatus === "idle") return null;
+  const [callSeconds, setCallSeconds] = useState(0);
 
   const isIncoming = callStatus === "incoming";
   const isVideo = callType === "video";
+
+  // Start timer only after the call is connected.
+  useEffect(() => {
+    if (callStatus !== "active") {
+      setCallSeconds(0);
+      return;
+    }
+
+    const startedAt = Date.now();
+
+    const updateTimer = () => {
+      setCallSeconds(Math.floor((Date.now() - startedAt) / 1000));
+    };
+
+    updateTimer();
+    const intervalId = setInterval(updateTimer, 1000);
+
+    return () => clearInterval(intervalId);
+  }, [callStatus]);
+
+  // Attach local camera stream.
+  useEffect(() => {
+    if (localVideoRef.current && localStream) {
+      localVideoRef.current.srcObject = localStream;
+      localVideoRef.current.play().catch(() => {});
+    }
+  }, [localStream]);
+
+  // Attach remote video stream.
+  useEffect(() => {
+    if (remoteVideoRef.current && remoteStream) {
+      remoteVideoRef.current.srcObject = remoteStream;
+      remoteVideoRef.current.play().catch((error) => {
+        console.warn("Remote video playback:", error);
+      });
+    }
+  }, [remoteStream]);
+
+  // Audio-only calls need their own audio playback element.
+  useEffect(() => {
+    const audioElement = remoteAudioRef.current;
+
+    if (!audioElement || !remoteStream || isVideo) return;
+
+    audioElement.srcObject = remoteStream;
+
+    audioElement.play().catch((error) => {
+      console.warn("Remote audio playback failed:", error);
+    });
+
+    return () => {
+      audioElement.pause();
+      audioElement.srcObject = null;
+    };
+  }, [remoteStream, isVideo]);
+
+  if (callStatus === "idle") return null;
+
+  const formatTime = (totalSeconds) => {
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+
+    return [hours, minutes, seconds]
+      .map((value) => String(value).padStart(2, "0"))
+      .join(":");
+  };
 
   const statusText = isIncoming
     ? `Incoming ${isVideo ? "video" : "audio"} call`
@@ -66,11 +121,13 @@ const CallOverlay = () => {
               playsInline
               className="h-full w-full object-cover"
             />
+
             {!remoteStream && (
               <div className="absolute inset-0 flex items-center justify-center text-white">
                 Waiting for video...
               </div>
             )}
+
             {localStream && (
               <video
                 ref={localVideoRef}
@@ -83,7 +140,20 @@ const CallOverlay = () => {
           </div>
         )}
 
-        <div className={`relative z-20 flex w-full flex-col items-center ${isVideo && !isIncoming ? "text-white" : ""}`}>
+        {/* Audio playback for audio-only calls */}
+        {!isVideo && (
+          <audio
+            ref={remoteAudioRef}
+            autoPlay
+            playsInline
+          />
+        )}
+
+        <div
+          className={`relative z-20 flex w-full flex-col items-center ${
+            isVideo && !isIncoming ? "text-white" : ""
+          }`}
+        >
           <div className="mb-4 flex size-24 items-center justify-center overflow-hidden rounded-full bg-base-300">
             {peerName ? (
               <span className="text-3xl font-semibold">
@@ -97,7 +167,14 @@ const CallOverlay = () => {
           <h2 className="text-xl font-semibold">
             {peerName || "Chat user"}
           </h2>
+
           <p className="mt-2 text-sm opacity-80">{statusText}</p>
+
+          {callStatus === "active" && (
+            <p className="mt-2 font-mono text-lg" aria-live="off">
+              {formatTime(callSeconds)}
+            </p>
+          )}
         </div>
 
         {isVideo && isIncoming && remoteStream && (
@@ -121,6 +198,7 @@ const CallOverlay = () => {
               >
                 <PhoneOff size={22} />
               </button>
+
               <button
                 type="button"
                 onClick={acceptCall}
@@ -136,7 +214,9 @@ const CallOverlay = () => {
               <button
                 type="button"
                 onClick={toggleMute}
-                className={`btn btn-circle ${isMuted ? "btn-warning" : "btn-ghost"}`}
+                className={`btn btn-circle ${
+                  isMuted ? "btn-warning" : "btn-ghost"
+                }`}
                 title={isMuted ? "Unmute microphone" : "Mute microphone"}
                 aria-label={isMuted ? "Unmute microphone" : "Mute microphone"}
               >
@@ -147,11 +227,17 @@ const CallOverlay = () => {
                 <button
                   type="button"
                   onClick={toggleCamera}
-                  className={`btn btn-circle ${isCameraOff ? "btn-warning" : "btn-ghost"}`}
+                  className={`btn btn-circle ${
+                    isCameraOff ? "btn-warning" : "btn-ghost"
+                  }`}
                   title={isCameraOff ? "Turn camera on" : "Turn camera off"}
                   aria-label={isCameraOff ? "Turn camera on" : "Turn camera off"}
                 >
-                  {isCameraOff ? <VideoOff size={20} /> : <Video size={20} />}
+                  {isCameraOff ? (
+                    <VideoOff size={20} />
+                  ) : (
+                    <Video size={20} />
+                  )}
                 </button>
               )}
 

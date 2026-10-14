@@ -10,15 +10,16 @@ const ChatHeader = () => {
   const startCall = useCallStore((state) => state.startCall);
   const callStatus = useCallStore((state) => state.callStatus);
 
-  const userId = String(selectedUser._id);
-  const isTyping = Boolean(typingUsers[userId]);
+  if (!selectedUser) return null;
 
-  const isOnline = onlineUsers.some(
+  const userId = String(selectedUser._id);
+  const isTyping = Boolean(typingUsers?.[userId]);
+
+  const isOnline = onlineUsers?.some(
     (id) => String(id) === userId
   );
 
-  const lastSeen = userStatuses[userId]?.lastSeen;
-
+  const lastSeen = userStatuses?.[userId]?.lastSeen;
   const isCallInProgress = callStatus !== "idle";
 
   const getStatusText = () => {
@@ -42,32 +43,32 @@ const ChatHeader = () => {
   };
 
   return (
-    <div className="p-2.5 border-b border-base-300">
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex min-w-0 items-center gap-3">
-          <div className="avatar">
-            <div className="relative size-10 rounded-full">
-              <img
-                src={selectedUser.profilePic || "/avatar.png"}
-                alt={selectedUser.fullName}
-              />
+    <div className="relative z-10 w-full shrink-0 border-b border-base-300 bg-base-100 p-3">
+      <div className="flex w-full min-w-0 items-center justify-between gap-2">
+        <div className="flex min-w-0 flex-1 items-center gap-3">
+          <div className="relative size-10 shrink-0 overflow-hidden rounded-full">
+            <img
+              src={selectedUser.profilePic || "/avatar.png"}
+              alt={selectedUser.fullName || "User"}
+              className="block size-full object-cover"
+            />
 
-              {isOnline && (
-                <span className="absolute bottom-0 right-0 size-3 rounded-full bg-green-500 ring-2 ring-base-100" />
-              )}
-            </div>
+            {isOnline && (
+              <span className="absolute bottom-0 right-0 size-3 rounded-full border-2 border-base-100 bg-green-500" />
+            )}
           </div>
 
-          <div className="min-w-0">
-            <h3 className="truncate font-medium">
-              {selectedUser.fullName}
+          <div className="min-w-0 flex-1">
+            <h3 className="truncate font-semibold text-base-content">
+              {selectedUser.fullName || selectedUser.email || "User"}
             </h3>
 
             <p
-              className={`text-sm ${isTyping
+              className={`truncate text-sm ${
+                isTyping
                   ? "font-medium text-success"
                   : "text-base-content/70"
-                }`}
+              }`}
             >
               {getStatusText()}
             </p>
