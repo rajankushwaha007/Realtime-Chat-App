@@ -1,8 +1,10 @@
+import mongoose from "mongoose";
 import { Server } from "socket.io";
 import http from "http";
 import express from "express";
 import Message from "../models/message.model.js";
 import User from "../models/user.model.js";
+import Call from "../models/call.model.js";
 
 const app = express();
 const server = http.createServer(app);
@@ -256,15 +258,49 @@ io.on("connection", async (socket) => {
 
   // ================= CALL SIGNALING =================
 
-  // Start an audio or video call
+
+  // ================= CALL SIGNALING =================
+
+  // Start an audio or video call and save its history
   socket.on("callUser", async ({ toUserId, offer, callType, callId } = {}) => {
     try {
       if (
-        !toUserId ||
+        !mongoose.isValidObjectId(id) ||
+        !mongoose.isValidObjectId(toUserId) ||
         String(toUserId) === id ||
         !offer ||
         !["audio", "video"].includes(callType) ||
-        typeof callId !== "string"
+        typeof callId !== "string" ||
+        !callId.trim()
+      ) {
+        return;
+      }
+
+      // Create one history record per callId
+      const call = await Call.findOneAndUpdate(
+        { callId },
+        {
+          $setOnInsert: {
+            callerId: id,
+            receiverId: toUserId,
+            callType,
+            status: "ringing",
+            startedAt: new Date(),
+          },
+        },
+        {
+          new: true,
+          upsert: true,
+          setDefaultsOnInsert: true,
+        }
+      );
+
+      // Do not allow a callId to be reused by different users
+      if (
+        String(call.callerId) !== id ||
+        String(call.receiverId) !== String(toUserId) ||
+        call.callType !== callType ||
+        call.status !== "ringing"
       ) {
         return;
       }
@@ -272,10 +308,20 @@ io.on("connection", async (socket) => {
       const receiverSockets = getReceiverSocketId(String(toUserId));
 
       if (!receiverSockets) {
+        await Call.updateOne(
+          { _id: call._id, status: "ringing" },
+          {
+            $set: {
+              status: "missed",
+              endedAt: new Date(),
+              durationSeconds: 0,
+            },
+          }
+        );
+
         socket.emit("callUnavailable", { callId });
         return;
       }
-
 
       const caller = await User.findById(id).select("fullName profilePic");
 
@@ -287,29 +333,58 @@ io.on("connection", async (socket) => {
         offer,
         callType,
       });
-
     } catch (error) {
       console.error("Start call error:", error.message);
     }
   });
 
   // Receiver accepts the call
-  socket.on("answerCall", ({ toUserId, answer, callId } = {}) => {
-    if (!toUserId || !answer || typeof callId !== "string") return;
+  socket.on("answerCall", async ({ toUserId, answer, callId } = {}) => {
+    try {
+      if (
+        !mongoose.isValidObjectId(toUserId) ||
+        !answer ||
+        typeof callId !== "string"
+      ) {
+        return;
+      }
 
-    const receiverSockets = getReceiverSocketId(String(toUserId));
-    if (!receiverSockets) return;
+      const receiverSockets = getReceiverSocketId(String(toUserId));
+      if (!receiverSockets) return;
 
-    io.to(receiverSockets).emit("callAccepted", {
-      callId,
-      fromUserId: id,
-      answer,
-    });
+      const call = await Call.findOneAndUpdate(
+        {
+          callId,
+          callerId: toUserId,
+          receiverId: id,
+          status: "ringing",
+          answeredAt: null,
+        },
+        { $set: { answeredAt: new Date() } },
+        { new: true }
+      );
+
+      if (!call) return;
+
+      io.to(receiverSockets).emit("callAccepted", {
+        callId,
+        fromUserId: id,
+        answer,
+      });
+    } catch (error) {
+      console.error("Answer call error:", error.message);
+    }
   });
 
   // Relay WebRTC ICE candidates
   socket.on("iceCandidate", ({ toUserId, candidate, callId } = {}) => {
-    if (!toUserId || !candidate || typeof callId !== "string") return;
+    if (
+      !toUserId ||
+      !candidate ||
+      typeof callId !== "string"
+    ) {
+      return;
+    }
 
     const receiverSockets = getReceiverSocketId(String(toUserId));
     if (!receiverSockets) return;
@@ -321,20 +396,104 @@ io.on("connection", async (socket) => {
     });
   });
 
-  // Reject an incoming call
-  socket.on("rejectCall", ({ toUserId, callId } = {}) => {
-    if (!toUserId || typeof callId !== "string") return;
+  // Receiver rejects the incoming call
+  socket.on("rejectCall", async ({ toUserId, callId } = {}) => {
+    try {
+      if (
+        !mongoose.isValidObjectId(toUserId) ||
+        typeof callId !== "string"
+      ) {
+        return;
+      }
 
-    const receiverSockets = getReceiverSocketId(String(toUserId));
-    if (!receiverSockets) return;
+      const call = await Call.findOneAndUpdate(
+        {
+          callId,
+          callerId: toUserId,
+          receiverId: id,
+          status: "ringing",
+          answeredAt: null,
+        },
+        {
+          $set: {
+            status: "rejected",
+            endedAt: new Date(),
+            durationSeconds: 0,
+          },
+        },
+        { new: true }
+      );
 
-    io.to(receiverSockets).emit("callRejected", {
-      callId,
-      fromUserId: id,
-    });
+      if (!call) return;
+
+      const receiverSockets = getReceiverSocketId(String(toUserId));
+
+      if (receiverSockets) {
+        io.to(receiverSockets).emit("callRejected", {
+          callId,
+          fromUserId: id,
+        });
+      }
+    } catch (error) {
+      console.error("Reject call error:", error.message);
+    }
   });
 
-  // End an active call
+  // End an active call or cancel a call that was not answered
+  socket.on("endCall", async ({ toUserId, callId } = {}) => {
+    try {
+      if (
+        !mongoose.isValidObjectId(toUserId) ||
+        typeof callId !== "string"
+      ) {
+        return;
+      }
+
+      const call = await Call.findOne({
+        callId,
+        $or: [
+          { callerId: id, receiverId: toUserId },
+          { callerId: toUserId, receiverId: id },
+        ],
+        endedAt: null,
+      });
+
+      if (call) {
+        const endedAt = new Date();
+        const answeredAt = call.answeredAt;
+        const durationSeconds = answeredAt
+          ? Math.max(
+            0,
+            Math.floor((endedAt.getTime() - answeredAt.getTime()) / 1000)
+          )
+          : 0;
+
+        await Call.updateOne(
+          { _id: call._id, endedAt: null },
+          {
+            $set: {
+              status: answeredAt ? "completed" : "no_answer",
+              endedAt,
+              durationSeconds,
+            },
+          }
+        );
+      }
+
+      const receiverSockets = getReceiverSocketId(String(toUserId));
+
+      if (receiverSockets) {
+        io.to(receiverSockets).emit("callEnded", {
+          callId,
+          fromUserId: id,
+        });
+      }
+    } catch (error) {
+      console.error("End call error:", error.message);
+    }
+  });
+
+  // ================= END CALL SIGNALING =================
   socket.on("endCall", ({ toUserId, callId } = {}) => {
     if (!toUserId || typeof callId !== "string") return;
 
