@@ -58,7 +58,7 @@ const CallOverlay = () => {
   useEffect(() => {
     if (localVideoRef.current && localStream) {
       localVideoRef.current.srcObject = localStream;
-      localVideoRef.current.play().catch(() => {});
+      localVideoRef.current.play().catch(() => { });
     }
   }, [localStream]);
 
@@ -150,12 +150,17 @@ const CallOverlay = () => {
         )}
 
         <div
-          className={`relative z-20 flex w-full flex-col items-center ${
-            isVideo && !isIncoming ? "text-white" : ""
-          }`}
+          className={`relative z-20 flex w-full flex-col items-center ${isVideo && !isIncoming ? "text-white" : ""
+            }`}
         >
           <div className="mb-4 flex size-24 items-center justify-center overflow-hidden rounded-full bg-base-300">
-            {peerName ? (
+            {peerProfilePic ? (
+              <img
+                src={peerProfilePic}
+                alt={peerName || "User"}
+                className="h-full w-full rounded-full object-cover"
+              />
+            ) : peerName ? (
               <span className="text-3xl font-semibold">
                 {peerName.charAt(0).toUpperCase()}
               </span>
@@ -214,9 +219,8 @@ const CallOverlay = () => {
               <button
                 type="button"
                 onClick={toggleMute}
-                className={`btn btn-circle ${
-                  isMuted ? "btn-warning" : "btn-ghost"
-                }`}
+                className={`btn btn-circle ${isMuted ? "btn-warning" : "btn-ghost"
+                  }`}
                 title={isMuted ? "Unmute microphone" : "Mute microphone"}
                 aria-label={isMuted ? "Unmute microphone" : "Mute microphone"}
               >
@@ -227,9 +231,8 @@ const CallOverlay = () => {
                 <button
                   type="button"
                   onClick={toggleCamera}
-                  className={`btn btn-circle ${
-                    isCameraOff ? "btn-warning" : "btn-ghost"
-                  }`}
+                  className={`btn btn-circle ${isCameraOff ? "btn-warning" : "btn-ghost"
+                    }`}
                   title={isCameraOff ? "Turn camera on" : "Turn camera off"}
                   aria-label={isCameraOff ? "Turn camera on" : "Turn camera off"}
                 >
