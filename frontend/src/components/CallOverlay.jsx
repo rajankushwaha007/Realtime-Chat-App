@@ -15,6 +15,7 @@ const CallOverlay = () => {
     callStatus,
     callType,
     peerName,
+    peerProfilePic,
     localStream,
     remoteStream,
     isMuted,
