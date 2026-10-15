@@ -1,7 +1,10 @@
+import { useLocation } from "react-router-dom";
 import StatusSection from "../components/StatusSection";
 import PageBackButton from "../components/PageBackButton";
 
 const StatusPage = () => {
+  const location = useLocation();
+  const statusDraft = location.state?.statusDraft;
   return (
     <main className="min-h-screen bg-base-200 p-4 md:p-6">
       <div className="mx-auto min-h-[calc(100dvh-3rem)] max-w-3xl overflow-hidden rounded-2xl border border-base-300 bg-base-100 shadow-sm">
@@ -17,7 +20,7 @@ const StatusPage = () => {
         </div>
 
         <div className="p-4">
-          <StatusSection />
+          <StatusSection initialDraft={statusDraft} />
         </div>
       </div>
     </main>

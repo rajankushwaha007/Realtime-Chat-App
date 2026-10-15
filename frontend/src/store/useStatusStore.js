@@ -74,6 +74,28 @@ export const useStatusStore = create((set, get) => ({
     }
   },
 
+  createVideoStatus: async (video) => {
+    set({ isCreating: true });
+
+    try {
+      await axiosInstance.post("/statuses", {
+        type: "video",
+        video,
+      });
+
+      await get().fetchStatuses(false);
+      toast.success("Video status added successfully");
+      return true;
+    } catch (error) {
+      toast.error(
+        error.response?.data?.message || "Failed to upload video status"
+      );
+      return false;
+    } finally {
+      set({ isCreating: false });
+    }
+  },
+
   markStatusViewed: async (statusId) => {
     try {
       await axiosInstance.post(`/statuses/${statusId}/view`);

@@ -9,6 +9,9 @@ import {
   Settings,
   LogOut,
   MoreVertical,
+  Bookmark,
+  Image,
+  Globe,
 } from "lucide-react";
 import { useChatStore } from "../store/useChatStore";
 import { useAuthStore } from "../store/useAuthStore";
@@ -150,6 +153,56 @@ const HomePage = () => {
                 </button>
               </div>
             )}
+          </div>
+
+          <div className="shrink-0 border-b border-base-300 bg-base-100 p-3">
+            <button
+              type="button"
+              onClick={() => navigate("/status-hub")}
+              className="flex w-full items-center gap-3 rounded-xl bg-primary/10 p-3 text-left transition hover:bg-primary/20"
+            >
+              <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-content">
+                <Image size={21} />
+              </div>
+
+              <div className="min-w-0 flex-1">
+                <p className="font-semibold">Status Hub</p>
+                <p className="text-xs opacity-60">
+                  Explore, save and download statuses
+                </p>
+              </div>
+
+              <span className="text-lg opacity-60">›</span>
+            </button>
+
+            <div className="mt-2 grid grid-cols-3 gap-2">
+              <button
+                type="button"
+                onClick={() => navigate("/status-hub")}
+                className="flex flex-col items-center gap-1 rounded-lg border border-base-300 p-2 text-xs hover:bg-base-200"
+              >
+                <Image size={18} />
+                <span>Gallery</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => navigate("/status-hub")}
+                className="flex flex-col items-center gap-1 rounded-lg border border-base-300 p-2 text-xs hover:bg-base-200"
+              >
+                <Globe size={18} />
+                <span>Online</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => navigate("/status-hub")}
+                className="flex flex-col items-center gap-1 rounded-lg border border-base-300 p-2 text-xs hover:bg-base-200"
+              >
+                <Bookmark size={18} />
+                <span>Saved</span>
+              </button>
+            </div>
           </div>
 
           <div className="min-h-0 flex-1 overflow-hidden">

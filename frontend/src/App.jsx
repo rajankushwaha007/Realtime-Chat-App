@@ -18,6 +18,8 @@ import { useAuthStore } from "./store/useAuthStore";
 import { useThemeStore } from "./store/useThemeStore";
 import { useEffect, useState } from "react";
 
+import StatusHubPage from "./pages/StatusHubPage";
+
 import { Loader } from "lucide-react";
 import { Toaster } from "react-hot-toast";
 
@@ -94,6 +96,12 @@ const App = () => {
             ) : (
               <Navigate to="/phone-otp" replace />
             )
+          }
+        />
+        <Route
+          path="/status-hub"
+          element={
+            authUser ? <StatusHubPage /> : <Navigate to="/phone-otp" replace />
           }
         />
 
