@@ -84,16 +84,30 @@ export const getStatuses = async (req, res) => {
       .populate("reactions.userId", "fullName profilePic")
       .sort({ createdAt: 1 });
 
+
     const result = statuses.map((status) => {
       const item = status.toObject();
 
-      // Only the owner can see the full viewer list.
-      if (String(item.userId?._id) !== String(req.user._id)) {
+      const isOwner =
+        String(item.userId?._id) === String(req.user._id);
+
+      item.hasViewed = item.viewers.some(
+        (viewer) =>
+          String(
+            typeof viewer.userId === "object"
+              ? viewer.userId?._id
+              : viewer.userId
+          ) === String(req.user._id)
+      );
+
+      // Only the owner can see the complete viewer list.
+      if (!isOwner) {
         item.viewers = [];
       }
 
       return item;
     });
+
 
     return res.status(200).json(result);
   } catch (error) {
@@ -148,18 +162,8 @@ export const viewStatus = async (req, res) => {
 // Add or change the current user's reaction
 export const reactToStatus = async (req, res) => {
   try {
-    const { emoji } = req.body;
-
     if (!mongoose.isValidObjectId(req.params.id)) {
       return res.status(400).json({ message: "Invalid status ID" });
-    }
-
-    if (
-      typeof emoji !== "string" ||
-      !emoji.trim() ||
-      emoji.length > 16
-    ) {
-      return res.status(400).json({ message: "Invalid emoji reaction" });
     }
 
     const status = await Status.findOne({
@@ -168,29 +172,36 @@ export const reactToStatus = async (req, res) => {
     });
 
     if (!status) {
-      return res.status(404).json({ message: "Status not found or expired" });
+      return res.status(404).json({
+        message: "Status not found or expired",
+      });
     }
 
-    const existing = status.reactions.find(
+    const existingIndex = status.reactions.findIndex(
       (reaction) => String(reaction.userId) === String(req.user._id)
     );
 
-    if (existing) {
-      existing.emoji = emoji;
+    if (existingIndex !== -1) {
+      status.reactions.splice(existingIndex, 1);
     } else {
       status.reactions.push({
         userId: req.user._id,
-        emoji,
+        emoji: "❤️",
       });
     }
 
     await status.save();
     emitStatusUpdate(status._id);
 
-    return res.status(200).json({ message: "Reaction saved" });
+    return res.status(200).json({
+      message: existingIndex !== -1 ? "Like removed" : "Status liked",
+      liked: existingIndex === -1,
+    });
   } catch (error) {
     console.error("reactToStatus error:", error.message);
-    return res.status(500).json({ message: "Failed to react to status" });
+    return res.status(500).json({
+      message: "Failed to react to status",
+    });
   }
 };
 
@@ -219,4 +230,4 @@ export const deleteStatus = async (req, res) => {
     console.error("deleteStatus error:", error.message);
     return res.status(500).json({ message: "Failed to delete status" });
   }
-};
+}
