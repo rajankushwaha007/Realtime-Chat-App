@@ -83,14 +83,20 @@ export const useStatusStore = create((set, get) => ({
     }
   },
 
-  reactToStatus: async (statusId, emoji) => {
+  toggleStatusLike: async (statusId) => {
     try {
-      await axiosInstance.post(`/statuses/${statusId}/react`, { emoji });
+      const res = await axiosInstance.post(
+        `/statuses/${statusId}/react`,
+        { emoji: "❤️" }
+      );
+
       await get().fetchStatuses(false);
+      return res.data.liked;
     } catch (error) {
       toast.error(
-        error.response?.data?.message || "Failed to react to status"
+        error.response?.data?.message || "Failed to update status like"
       );
+      return false;
     }
   },
 

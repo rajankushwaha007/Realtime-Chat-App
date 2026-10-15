@@ -1,3 +1,4 @@
+import PageBackButton from "../components/PageBackButton";
 import { useCallback, useEffect, useState } from "react";
 import {
     Phone,
@@ -11,6 +12,7 @@ import {
 } from "lucide-react";
 import { axiosInstance } from "../lib/axios";
 import { useAuthStore } from "../store/useAuthStore";
+import { useCallStore } from "../store/useCallStore";
 
 const formatDate = (date) => {
     if (!date) return "Date unavailable";
@@ -52,6 +54,8 @@ const getCallStatus = (call, isOutgoing) => {
 
 const CallsPage = () => {
     const authUser = useAuthStore((state) => state.authUser);
+    const startCall = useCallStore((state) => state.startCall);
+    const callStatus = useCallStore((state) => state.callStatus);
 
     const [calls, setCalls] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -103,12 +107,16 @@ const CallsPage = () => {
     return (
         <main className="min-h-[calc(100dvh-4rem)] bg-base-200 p-4 md:p-6">
             <div className="mx-auto max-w-3xl overflow-hidden rounded-2xl border border-base-300 bg-base-100 shadow-sm">
-                <div className="flex items-center justify-between gap-3 border-b border-base-300 px-5 py-4">
-                    <div>
-                        <h1 className="text-xl font-bold">Calls</h1>
-                        <p className="mt-1 text-sm opacity-60">
-                            Your audio and video call history
-                        </p>
+                <div className="flex items-center justify-between gap-3 border-b border-base-300 px-4 py-4">
+                    <div className="flex min-w-0 items-center gap-3">
+                        <PageBackButton fallback="/" />
+
+                        <div>
+                            <h1 className="text-xl font-bold">Calls</h1>
+                            <p className="mt-1 text-sm opacity-60">
+                                Your audio and video call history
+                            </p>
+                        </div>
                     </div>
 
                     <button
@@ -119,9 +127,13 @@ const CallsPage = () => {
                         title="Refresh call history"
                         aria-label="Refresh call history"
                     >
-                        <RefreshCw size={18} className={loading ? "animate-spin" : ""} />
+                        <RefreshCw
+                            size={18}
+                            className={loading ? "animate-spin" : ""}
+                        />
                     </button>
                 </div>
+
 
                 {error && (
                     <div className="m-4 rounded-lg border border-error/30 bg-error/10 p-3 text-sm">
@@ -238,6 +250,30 @@ const CallsPage = () => {
                                                 </>
                                             )}
                                         </div>
+                                    </div>
+
+                                    <div className="flex shrink-0 items-center gap-1">
+                                        <button
+                                            type="button"
+                                            onClick={() => startCall(otherUser, "audio")}
+                                            disabled={callStatus !== "idle" || !otherUser?._id}
+                                            className="btn btn-ghost btn-circle btn-sm text-success"
+                                            title="Audio call"
+                                            aria-label={`Audio call ${name}`}
+                                        >
+                                            <Phone size={18} />
+                                        </button>
+
+                                        <button
+                                            type="button"
+                                            onClick={() => startCall(otherUser, "video")}
+                                            disabled={callStatus !== "idle" || !otherUser?._id}
+                                            className="btn btn-ghost btn-circle btn-sm text-success"
+                                            title="Video call"
+                                            aria-label={`Video call ${name}`}
+                                        >
+                                            <Video size={18} />
+                                        </button>
                                     </div>
 
                                     <button

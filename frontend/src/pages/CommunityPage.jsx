@@ -1,15 +1,19 @@
-
 import { Users, MessageCircle } from "lucide-react";
+import PageBackButton from "../components/PageBackButton";
 
 const CommunityPage = () => {
   return (
     <main className="min-h-screen bg-base-200 p-4 md:p-6">
       <div className="mx-auto max-w-3xl overflow-hidden rounded-2xl border border-base-300 bg-base-100 shadow-sm">
-        <div className="border-b border-base-300 px-5 py-4">
-          <h1 className="text-xl font-bold">Communities</h1>
-          <p className="mt-1 text-sm opacity-60">
-            Bring groups together in one place
-          </p>
+        <div className="flex items-center gap-3 border-b border-base-300 px-4 py-4">
+          <PageBackButton fallback="/" />
+
+          <div>
+            <h1 className="text-xl font-bold">Communities</h1>
+            <p className="mt-1 text-sm opacity-60">
+              Bring groups together in one place
+            </p>
+          </div>
         </div>
 
         <div className="flex flex-col items-center px-6 py-16 text-center">
@@ -17,9 +21,7 @@ const CommunityPage = () => {
             <Users size={38} className="text-primary" />
           </div>
 
-          <h2 className="text-lg font-semibold">
-            Your communities
-          </h2>
+          <h2 className="text-lg font-semibold">Your communities</h2>
 
           <p className="mt-2 max-w-sm text-sm opacity-60">
             Community creation and group management can be added here next.

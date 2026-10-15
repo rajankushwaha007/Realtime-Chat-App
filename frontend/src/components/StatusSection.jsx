@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Plus, X, Type, Image as ImageIcon, Trash2, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, X, Type, Image as ImageIcon, Trash2, ChevronLeft, ChevronRight, Heart, } from "lucide-react";
 import { useAuthStore } from "../store/useAuthStore";
 import { useStatusStore } from "../store/useStatusStore";
 
@@ -14,12 +14,14 @@ const StatusSection = () => {
     createImageStatus,
     markStatusViewed,
     deleteStatus,
+    toggleStatusLike,
   } = useStatusStore();
 
   const [showComposer, setShowComposer] = useState(false);
   const [text, setText] = useState("");
   const [selectedStatus, setSelectedStatus] = useState(null);
   const [uploadingType, setUploadingType] = useState("text");
+  const [likedStatuses, setLikedStatuses] = useState({});
   const fileRef = useRef(null);
 
   useEffect(() => {
@@ -84,9 +86,9 @@ const StatusSection = () => {
 
   const activeStatuses = selectedStatus
     ? statuses.filter(
-        (status) =>
-          String(status.userId?._id) === String(selectedStatus.userId?._id)
-      )
+      (status) =>
+        String(status.userId?._id) === String(selectedStatus.userId?._id)
+    )
     : [];
 
   const currentIndex = activeStatuses.findIndex(
@@ -98,6 +100,23 @@ const StatusSection = () => {
     if (next) openStatus(next);
   };
 
+  const isStatusLiked = (status) => {
+    if (!status) return false;
+
+    if (Object.prototype.hasOwnProperty.call(likedStatuses, status._id)) {
+      return likedStatuses[status._id];
+    }
+
+    return (status?.reactions || []).some(
+      (reaction) =>
+        String(
+          typeof reaction.userId === "object"
+            ? reaction.userId?._id
+            : reaction.userId
+        ) === String(authUser?._id) &&
+        reaction.emoji === "❤️"
+    );
+  };
   return (
     <section className="border-b border-base-300 px-3 py-3">
       <div className="mb-3 flex items-center justify-between">
@@ -136,25 +155,41 @@ const StatusSection = () => {
           )}
         </button>
 
-        {otherStatuses.map((status) => (
-          <button
-            type="button"
-            key={status._id}
-            onClick={() => openStatus(status)}
-            className="flex w-16 shrink-0 flex-col items-center gap-1"
-          >
-            <div className="rounded-full border-2 border-green-500 p-0.5">
-              <img
-                src={status.userId?.profilePic || "/avatar.png"}
-                alt={status.userId?.fullName || "Contact"}
-                className="size-12 rounded-full object-cover"
-              />
-            </div>
-            <span className="w-full truncate text-xs">
-              {status.userId?.fullName || "Contact"}
-            </span>
-          </button>
-        ))}
+
+        {otherStatuses.map((status) => {
+          const userStatuses = otherStatuses.filter(
+            (item) =>
+              String(item.userId?._id) === String(status.userId?._id)
+          );
+
+          const allViewed = userStatuses.every(
+            (item) => item.hasViewed === true
+          );
+          return (
+            <button
+              type="button"
+              key={status._id}
+              onClick={() => openStatus(status)}
+              className="flex w-16 shrink-0 flex-col items-center gap-1"
+            >
+              <div
+                className={`rounded-full border-2 p-0.5 ${allViewed ? "border-gray-400" : "border-green-500"
+                  }`}
+              >
+                <img
+                  src={status.userId?.profilePic || "/avatar.png"}
+                  alt={status.userId?.fullName || "Contact"}
+                  className="size-12 rounded-full object-cover"
+                />
+              </div>
+
+              <span className="w-full truncate text-xs">
+                {status.userId?.fullName || "Contact"}
+              </span>
+            </button>
+          );
+        })}
+
 
         {!isLoading && otherStatuses.length === 0 && (
           <p className="self-center text-xs opacity-50">
@@ -242,11 +277,10 @@ const StatusSection = () => {
               {activeStatuses.map((status) => (
                 <div
                   key={status._id}
-                  className={`h-1 flex-1 rounded-full ${
-                    status._id === selectedStatus._id
-                      ? "bg-white"
-                      : "bg-white/40"
-                  }`}
+                  className={`h-1 flex-1 rounded-full ${status._id === selectedStatus._id
+                    ? "bg-white"
+                    : "bg-white/40"
+                    }`}
                 />
               ))}
             </div>
@@ -307,28 +341,147 @@ const StatusSection = () => {
               )}
             </div>
 
-            <div className="flex items-center justify-between border-t border-white/10 p-3">
-              <button
-                type="button"
-                onClick={() => moveStatus(-1)}
-                disabled={currentIndex <= 0}
-                className="btn btn-ghost btn-sm text-white"
-              >
-                <ChevronLeft size={20} />
-                Previous
-              </button>
-              <span className="text-xs text-white/60">
-                {currentIndex + 1} / {activeStatuses.length}
-              </span>
-              <button
-                type="button"
-                onClick={() => moveStatus(1)}
-                disabled={currentIndex < 0 || currentIndex >= activeStatuses.length - 1}
-                className="btn btn-ghost btn-sm text-white"
-              >
-                Next
-                <ChevronRight size={20} />
-              </button>
+            {String(selectedStatus.userId?._id) === String(authUser?._id) && (
+              <div className="mx-3 mb-3 rounded-xl bg-white/10 p-3">
+                <div className="mb-2 flex items-center justify-between">
+                  <h3 className="text-sm font-semibold">Status activity</h3>
+                  <span className="text-xs text-white/70">
+                    👁️ {selectedStatus.viewers?.length || 0} views
+                  </span>
+                </div>
+
+                <div className="max-h-36 space-y-2 overflow-y-auto">
+                  {(selectedStatus.viewers || []).map((viewer, index) => (
+                    <div
+                      key={viewer.userId?._id || index}
+                      className="flex items-center gap-2 text-sm"
+                    >
+                      <img
+                        src={viewer.userId?.profilePic || "/avatar.png"}
+                        alt=""
+                        className="size-8 rounded-full object-cover"
+                      />
+
+                      <span className="min-w-0 flex-1 truncate">
+                        {viewer.userId?.fullName || "User"}
+                      </span>
+
+                      <span className="text-xs text-white/60">
+                        {viewer.viewedAt
+                          ? new Date(viewer.viewedAt).toLocaleTimeString([], {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })
+                          : ""}
+                      </span>
+                    </div>
+                  ))}
+
+                  {(!selectedStatus.viewers || selectedStatus.viewers.length === 0) && (
+                    <p className="text-xs text-white/60">
+                      Abhi kisi ne status nahi dekha.
+                    </p>
+                  )}
+                </div>
+
+                <div className="my-3 border-t border-white/10" />
+
+                <h4 className="mb-2 text-sm font-semibold">
+                  ❤️ Liked by {(selectedStatus.reactions || []).filter(
+                    (reaction) => reaction.emoji === "❤️"
+                  ).length}
+                </h4>
+
+                <div className="flex flex-wrap gap-2">
+                  {(selectedStatus.reactions || [])
+                    .filter((reaction) => reaction.emoji === "❤️")
+                    .map((reaction, index) => (
+                      <div
+                        key={reaction.userId?._id || index}
+                        className="flex items-center gap-2 rounded-full bg-white/10 px-2 py-1"
+                      >
+                        <img
+                          src={reaction.userId?.profilePic || "/avatar.png"}
+                          alt=""
+                          className="size-6 rounded-full object-cover"
+                        />
+                        <span className="max-w-28 truncate text-xs">
+                          {reaction.userId?.fullName || "User"}
+                        </span>
+                      </div>
+                    ))}
+
+                  {!(selectedStatus.reactions || []).some(
+                    (reaction) => reaction.emoji === "❤️"
+                  ) && (
+                      <p className="text-xs text-white/60">
+                        Abhi kisi ne Like nahi kiya.
+                      </p>
+                    )}
+                </div>
+              </div>
+            )}
+
+            <div className="border-t border-white/10 p-3">
+              {String(selectedStatus.userId?._id) !== String(authUser?._id) && (
+                <div className="mb-3 flex justify-center">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const statusId = selectedStatus._id;
+                      const wasLiked = isStatusLiked(selectedStatus);
+
+                      setLikedStatuses((prev) => ({
+                        ...prev,
+                        [statusId]: !wasLiked,
+                      }));
+
+                      const result = await toggleStatusLike(statusId);
+
+                      if (result === false) {
+                        setLikedStatuses((prev) => ({
+                          ...prev,
+                          [statusId]: wasLiked,
+                        }));
+                      }
+                    }}
+                    className="flex items-center gap-2 rounded-full bg-white/10 px-5 py-2 transition hover:bg-white/20"
+                  >
+                    <Heart
+                      size={23}
+                      fill={isStatusLiked(selectedStatus) ? "currentColor" : "none"}
+                      className={isStatusLiked(selectedStatus) ? "text-red-500" : "text-white"}
+                    />
+                    {isStatusLiked(selectedStatus) ? "Liked" : "Like"}
+                  </button>
+                </div>
+              )}
+
+              <div className="flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={() => moveStatus(-1)}
+                  disabled={currentIndex <= 0}
+                  className="btn btn-ghost btn-sm text-white"
+                >
+                  <ChevronLeft size={20} />
+                  Previous
+                </button>
+
+                <span className="text-xs text-white/60">
+                  {currentIndex + 1} / {activeStatuses.length}
+                </span>
+
+                <button
+                  type="button"
+                  onClick={() => moveStatus(1)}
+                  disabled={currentIndex < 0 || currentIndex >= activeStatuses.length - 1}
+                  className="btn btn-ghost btn-sm text-white"
+                >
+                  Next
+                  <ChevronRight size={20} />
+                </button>
+              </div>
             </div>
           </div>
         </div>

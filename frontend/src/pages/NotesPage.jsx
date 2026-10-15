@@ -1,5 +1,6 @@
 
 import { useEffect, useMemo, useState } from "react";
+import PageBackButton from "../components/PageBackButton";
 import {
     FileText,
     Plus,
@@ -155,7 +156,10 @@ const NotesPage = () => {
             <div className="max-w-6xl mx-auto">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
                     <div>
+                        
                         <div className="flex items-center gap-3 mb-2">
+                            <PageBackButton fallback="/" />
+
                             <div className="p-3 rounded-xl bg-primary/10 text-primary">
                                 <StickyNote className="size-7" />
                             </div>

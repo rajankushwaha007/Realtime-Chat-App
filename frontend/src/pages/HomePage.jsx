@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
@@ -7,6 +8,7 @@ import {
   Phone,
   Settings,
   LogOut,
+  MoreVertical,
 } from "lucide-react";
 import { useChatStore } from "../store/useChatStore";
 import { useAuthStore } from "../store/useAuthStore";
@@ -18,6 +20,7 @@ const HomePage = () => {
   const { selectedUser, setSelectedUser } = useChatStore();
   const { authUser, logout } = useAuthStore();
   const navigate = useNavigate();
+  const [showMenu, setShowMenu] = useState(false);
 
   const openSection = (path) => {
     setSelectedUser(null);
@@ -77,13 +80,76 @@ const HomePage = () => {
 
         {/* Chat list */}
         <section
-          className={`h-full w-full flex-col md:flex md:w-80 md:shrink-0 ${
-            selectedUser ? "hidden" : "flex"
-          }`}
+          className={`h-full w-full flex-col md:flex md:w-80 md:shrink-0 ${selectedUser ? "hidden" : "flex"
+            }`}
         >
-          <div className="border-b border-base-300 bg-base-100 px-4 py-4">
-            <h1 className="text-xl font-bold text-primary">Chatty</h1>
-            <p className="mt-1 text-sm opacity-60">Stay connected</p>
+
+          <div className="relative border-b border-base-300 bg-base-100 px-4 py-4">
+            <div className="flex items-start justify-between">
+              <div>
+                <h1 className="text-xl font-bold text-primary">Chatty</h1>
+                <p className="mt-1 text-sm opacity-60">Stay connected</p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowMenu((prev) => !prev)}
+                className="btn btn-ghost btn-circle btn-sm"
+                aria-label="Open menu"
+                aria-expanded={showMenu}
+              >
+                <MoreVertical size={23} />
+              </button>
+            </div>
+
+            {showMenu && (
+              <div className="absolute right-4 top-14 z-50 w-52 rounded-xl border border-base-300 bg-base-100 p-2 shadow-xl">
+                {/* Profile */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowMenu(false);
+                    navigate("/profile");
+                  }}
+                  className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left hover:bg-base-200"
+                >
+                  <img
+                    src={authUser?.profilePic || "/avatar.png"}
+                    alt=""
+                    className="size-6 rounded-full object-cover"
+                  />
+                  <span>Profile</span>
+                </button>
+
+                {/* Settings */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowMenu(false);
+                    navigate("/settings");
+                  }}
+                  className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left hover:bg-base-200"
+                >
+                  <Settings size={19} />
+                  <span>Settings</span>
+                </button>
+
+                <div className="my-1 border-t border-base-300" />
+
+                {/* Logout */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowMenu(false);
+                    logout();
+                  }}
+                  className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left text-error hover:bg-base-200"
+                >
+                  <LogOut size={19} />
+                  <span>Logout</span>
+                </button>
+              </div>
+            )}
           </div>
 
           <div className="min-h-0 flex-1 overflow-hidden">
@@ -116,9 +182,8 @@ const HomePage = () => {
 
         {/* Conversation */}
         <section
-          className={`min-w-0 flex-1 flex-col ${
-            selectedUser ? "flex" : "hidden md:flex"
-          }`}
+          className={`min-w-0 flex-1 flex-col ${selectedUser ? "flex" : "hidden md:flex"
+            }`}
         >
           {selectedUser ? (
             <>
