@@ -9,9 +9,10 @@ const emitStatusUpdate = (statusId) => {
 };
 
 // Create text or image status
+// Create text, image, or video status
 export const createStatus = async (req, res) => {
   try {
-    const { type, text, image } = req.body;
+    const { type, text, image, video } = req.body;
 
     if (type === "text") {
       if (!text || !text.trim()) {
@@ -34,9 +35,18 @@ export const createStatus = async (req, res) => {
           message: "A valid image is required",
         });
       }
+    } else if (type === "video") {
+      if (
+        typeof video !== "string" ||
+        !video.startsWith("data:video/")
+      ) {
+        return res.status(400).json({
+          message: "A valid video is required",
+        });
+      }
     } else {
       return res.status(400).json({
-        message: "Status type must be text or image",
+        message: "Status type must be text, image, or video",
       });
     }
 
@@ -46,6 +56,14 @@ export const createStatus = async (req, res) => {
       const upload = await cloudinary.uploader.upload(image, {
         folder: "chatty-statuses",
         resource_type: "image",
+      });
+
+      mediaUrl = upload.secure_url;
+    } else if (type === "video") {
+      const upload = await cloudinary.uploader.upload(video, {
+        folder: "chatty-statuses",
+        resource_type: "video",
+        timeout: 120000,
       });
 
       mediaUrl = upload.secure_url;
@@ -66,10 +84,18 @@ export const createStatus = async (req, res) => {
 
     return res.status(201).json(populatedStatus);
   } catch (error) {
-    console.error("createStatus error:", error.message);
+    console.error("Cloudinary status upload error:", {
+      message: error.message,
+      http_code: error.http_code,
+      name: error.name,
+      details: error.error?.message,
+      response: error.response?.data,
+    });
+
     return res.status(500).json({
       message: "Failed to create status",
     });
+
   }
 };
 
