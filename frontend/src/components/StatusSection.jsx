@@ -20,6 +20,14 @@ const StatusSection = ({ initialDraft }) => {
 
   const [showComposer, setShowComposer] = useState(false);
   const [text, setText] = useState("");
+  const [selectedImage, setSelectedImage] = useState("");
+
+  const [imageFilter, setImageFilter] = useState("none");
+  const [imageRotation, setImageRotation] = useState(0);
+  const [imageOverlayText, setImageOverlayText] = useState("");
+  const [imageEmoji, setImageEmoji] = useState("");
+
+
   useEffect(() => {
     if (!initialDraft) return;
 
@@ -39,6 +47,7 @@ const StatusSection = ({ initialDraft }) => {
   const [statusProgress, setStatusProgress] = useState(0);
   const statusTimerRef = useRef(null);
 
+
   useEffect(() => {
     if (!selectedStatus) {
       setStatusProgress(0);
@@ -47,7 +56,23 @@ const StatusSection = ({ initialDraft }) => {
 
     setStatusProgress(0);
 
-    const duration = selectedStatus.type === "video" ? 15000 : 7000;
+    if (statusTimerRef.current) {
+      clearInterval(statusTimerRef.current);
+      statusTimerRef.current = null;
+    }
+
+    // Video ka next status video khatam hone par khulega.
+    if (selectedStatus.type === "video") {
+      return () => {
+        if (statusTimerRef.current) {
+          clearInterval(statusTimerRef.current);
+          statusTimerRef.current = null;
+        }
+      };
+    }
+
+    // Image aur text status ka timer.
+    const duration = 7000;
     const startedAt = Date.now();
 
     statusTimerRef.current = setInterval(() => {
@@ -61,8 +86,7 @@ const StatusSection = ({ initialDraft }) => {
         statusTimerRef.current = null;
 
         if (currentIndex < activeStatuses.length - 1) {
-          const nextStatus = activeStatuses[currentIndex + 1];
-          openStatus(nextStatus);
+          openStatus(activeStatuses[currentIndex + 1]);
         } else {
           setSelectedStatus(null);
         }
@@ -76,6 +100,7 @@ const StatusSection = ({ initialDraft }) => {
       }
     };
   }, [selectedStatus?._id]);
+
 
   useEffect(() => {
     fetchStatuses();
@@ -111,7 +136,8 @@ const StatusSection = ({ initialDraft }) => {
     }
   };
 
-  const handleImage = async (event) => {
+
+  const handleImage = (event) => {
     const file = event.target.files?.[0];
     event.target.value = "";
 
@@ -129,13 +155,155 @@ const StatusSection = ({ initialDraft }) => {
 
     const reader = new FileReader();
 
-    reader.onload = async () => {
+    reader.onload = () => {
       if (typeof reader.result !== "string") return;
-      const success = await createImageStatus(reader.result);
-      if (success) setShowComposer(false);
+
+      setSelectedImage(reader.result);
+      setUploadingType("image");
     };
 
     reader.readAsDataURL(file);
+  };
+
+  const submitImage = async () => {
+    if (!selectedImage || isCreating) return;
+
+    const success = await createImageStatus(selectedImage);
+
+    if (success) {
+      setSelectedImage("");
+      setShowComposer(false);
+      setUploadingType("text");
+    }
+  };
+
+
+  const exportEditedImage = () => {
+    return new Promise((resolve, reject) => {
+      if (!selectedImage) {
+        resolve("");
+        return;
+      }
+
+      const image = new Image();
+
+      image.onload = () => {
+        try {
+          const rotation = ((imageRotation % 360) + 360) % 360;
+          const sideways = rotation === 90 || rotation === 270;
+
+          const canvas = document.createElement("canvas");
+          canvas.width = sideways ? image.naturalHeight : image.naturalWidth;
+          canvas.height = sideways ? image.naturalWidth : image.naturalHeight;
+
+          const ctx = canvas.getContext("2d");
+
+          if (!ctx) {
+            reject(new Error("Could not create image editor"));
+            return;
+          }
+
+          const filters = {
+            none: "none",
+            grayscale: "grayscale(1)",
+            sepia: "sepia(0.85)",
+            warm: "saturate(1.4) sepia(0.2)",
+            bright: "brightness(1.2)",
+            contrast: "contrast(1.25)",
+          };
+
+          ctx.translate(canvas.width / 2, canvas.height / 2);
+          ctx.rotate((rotation * Math.PI) / 180);
+          ctx.filter = filters[imageFilter] || "none";
+
+          ctx.drawImage(
+            image,
+            -image.naturalWidth / 2,
+            -image.naturalHeight / 2,
+            image.naturalWidth,
+            image.naturalHeight
+          );
+
+          ctx.filter = "none";
+
+          if (imageEmoji) {
+            ctx.font = `${Math.max(36, canvas.width * 0.12)}px sans-serif`;
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText(imageEmoji, 0, -canvas.height * 0.2);
+          }
+
+          if (imageOverlayText.trim()) {
+            const fontSize = Math.max(20, Math.min(42, canvas.width * 0.07));
+
+            ctx.font = `bold ${fontSize}px sans-serif`;
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.lineWidth = Math.max(3, fontSize * 0.12);
+            ctx.strokeStyle = "rgba(0,0,0,0.8)";
+            ctx.fillStyle = "#ffffff";
+
+            const words = imageOverlayText.trim().split(/\s+/);
+            const lines = [];
+            let line = "";
+
+            for (const word of words) {
+              const candidate = line ? `${line} ${word}` : word;
+
+              if (ctx.measureText(candidate).width > canvas.width * 0.85 && line) {
+                lines.push(line);
+                line = word;
+              } else {
+                line = candidate;
+              }
+            }
+
+            if (line) lines.push(line);
+
+            const lineHeight = fontSize * 1.3;
+            const startY = ((lines.length - 1) * lineHeight) / 2;
+
+            lines.forEach((item, index) => {
+              const y = startY * -1 + index * lineHeight;
+
+              ctx.strokeText(item, 0, y);
+              ctx.fillText(item, 0, y);
+            });
+          }
+
+          resolve(canvas.toDataURL("image/jpeg", 0.92));
+        } catch (error) {
+          reject(error);
+        }
+      };
+
+      image.onerror = () => reject(new Error("Could not load selected image"));
+      image.src = selectedImage;
+    });
+  };
+
+  const shareEditedImage = async () => {
+    if (!selectedImage || isCreating) return;
+
+    try {
+      const editedImage = await exportEditedImage();
+      if (!editedImage) return;
+
+      const success = await createImageStatus(editedImage);
+
+      if (success) {
+        setSelectedImage("");
+        setImageFilter("none");
+        setImageRotation(0);
+        setImageOverlayText("");
+        setImageEmoji("");
+        setShowComposer(false);
+        setUploadingType("text");
+      }
+    } catch (error) {
+      console.error("Image editing failed:", error);
+      alert("Photo edit nahi ho payi. Please try another image.");
+    }
   };
 
   const handleVideo = async (event) => {
@@ -325,13 +493,17 @@ const StatusSection = ({ initialDraft }) => {
         ))}
 
         {showComposer && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-            <div className="w-full max-w-md rounded-2xl bg-base-100 p-5 shadow-xl">
+          <div className="fixed inset-0 z-[60] flex items-stretch justify-center overflow-hidden bg-black p-0">
+            <div className="flex h-full w-full max-w-none flex-col overflow-y-auto bg-neutral-950 p-4 text-white sm:p-6">
               <div className="mb-4 flex items-center justify-between">
                 <h3 className="text-lg font-semibold">Create status</h3>
                 <button
                   type="button"
-                  onClick={() => setShowComposer(false)}
+                  onClick={() => {
+                    setShowComposer(false);
+                    setSelectedImage("");
+                    setUploadingType("text");
+                  }}
                   className="btn btn-ghost btn-circle btn-sm"
                   aria-label="Close"
                 >
@@ -409,6 +581,144 @@ const StatusSection = ({ initialDraft }) => {
                 </form>
               )}
 
+
+              {uploadingType === "image" && (
+                <div className="flex min-h-0 flex-1 flex-col gap-4">
+                  <div className="flex min-h-[220px] flex-1 items-center justify-center overflow-hidden rounded-2xl bg-black">
+                    {selectedImage && (
+                      <div className="relative flex max-h-full max-w-full items-center justify-center">
+                        <img
+                          src={selectedImage}
+                          alt="Photo preview"
+                          className="max-h-[45vh] max-w-full object-contain sm:max-h-[52vh]"
+                          style={{
+                            filter:
+                              {
+                                none: "none",
+                                grayscale: "grayscale(1)",
+                                sepia: "sepia(0.85)",
+                                warm: "saturate(1.4) sepia(0.2)",
+                                bright: "brightness(1.2)",
+                                contrast: "contrast(1.25)",
+                              }[imageFilter] || "none",
+                            transform: `rotate(${imageRotation}deg)`,
+                          }}
+                        />
+
+                        {imageEmoji && (
+                          <span className="absolute left-1/2 top-[25%] -translate-x-1/2 text-5xl">
+                            {imageEmoji}
+                          </span>
+                        )}
+
+                        {imageOverlayText && (
+                          <span className="absolute left-1/2 top-1/2 w-[85%] -translate-x-1/2 -translate-y-1/2 whitespace-pre-wrap break-words text-center text-xl font-bold text-white [text-shadow:0_2px_5px_black,0_0_3px_black]">
+                            {imageOverlayText}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  <div>
+                    <p className="mb-2 text-sm font-semibold">Photo filters</p>
+                    <div className="flex flex-wrap gap-2">
+                      {[
+                        ["none", "Original"],
+                        ["grayscale", "B&W"],
+                        ["sepia", "Vintage"],
+                        ["warm", "Warm"],
+                        ["bright", "Bright"],
+                        ["contrast", "Contrast"],
+                      ].map(([value, label]) => (
+                        <button
+                          key={value}
+                          type="button"
+                          onClick={() => setImageFilter(value)}
+                          className={`rounded-full border px-3 py-2 text-sm ${imageFilter === value
+                              ? "border-pink-400 bg-pink-600"
+                              : "border-white/30 bg-white/10"
+                            }`}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-sm font-semibold">
+                      Add text
+                    </label>
+                    <input
+                      value={imageOverlayText}
+                      onChange={(event) => setImageOverlayText(event.target.value)}
+                      maxLength={150}
+                      placeholder="Write something on your photo..."
+                      className="w-full rounded-xl border border-white/20 bg-white/10 p-3 text-white outline-none placeholder:text-white/50"
+                    />
+                  </div>
+
+                  <div>
+                    <p className="mb-2 text-sm font-semibold">Add emoji</p>
+                    <div className="flex flex-wrap gap-2">
+                      {["❤️", "😂", "🔥", "😍", "🥹", "✨", "😎", "🎉", "💯", "🌹"].map(
+                        (emoji) => (
+                          <button
+                            key={emoji}
+                            type="button"
+                            onClick={() =>
+                              setImageEmoji((current) => current === emoji ? "" : emoji)
+                            }
+                            className={`rounded-lg p-2 text-2xl ${imageEmoji === emoji ? "bg-pink-600" : "bg-white/10"
+                              }`}
+                          >
+                            {emoji}
+                          </button>
+                        )
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setImageRotation((rotation) => (rotation + 90) % 360)}
+                      disabled={isCreating}
+                      className="flex-1 rounded-xl bg-white/10 px-3 py-3"
+                    >
+                      ↻ Rotate
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedImage("");
+                        setImageFilter("none");
+                        setImageRotation(0);
+                        setImageOverlayText("");
+                        setImageEmoji("");
+                        setUploadingType("text");
+                      }}
+                      disabled={isCreating}
+                      className="flex-1 rounded-xl bg-white/10 px-3 py-3"
+                    >
+                      Cancel
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={shareEditedImage}
+                      disabled={isCreating || !selectedImage}
+                      className="flex-1 rounded-xl bg-green-600 px-3 py-3 font-semibold disabled:opacity-50"
+                    >
+                      {isCreating ? "Posting..." : "Share Status"}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+
               <p className="mt-3 text-center text-xs opacity-60">
                 Statuses disappear after 24 hours.
               </p>
@@ -417,7 +727,7 @@ const StatusSection = ({ initialDraft }) => {
         )}
 
         {selectedStatus && (
-          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black p-3 sm:p-6">
+          <div className="relative flex h-full w-full flex-col overflow-hidden bg-neutral-900 text-white">
             <div
               onTouchStart={(event) => {
                 touchStartY.current = event.touches[0].clientY;
@@ -435,7 +745,7 @@ const StatusSection = ({ initialDraft }) => {
                   setShowStatusActivity(false);
                 }
               }}
-              className="relative flex h-full max-h-[800px] w-full max-w-md flex-col overflow-hidden rounded-xl bg-neutral-900 text-white"
+              className="relative flex h-full w-full flex-col overflow-hidden bg-neutral-900 text-white"
             >
 
               <div className="absolute left-3 right-3 top-3 z-10 flex gap-1">
@@ -501,24 +811,43 @@ const StatusSection = ({ initialDraft }) => {
                 </button>
               </div>
 
-              <div className="flex min-h-0 flex-1 items-center justify-center px-4 pb-5">
-                {selectedStatus.type === "image" ? (
+              <div
+                className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden px-2 pb-2"
+              >
+                {selectedStatus.type === "video" ? (
+                  <video
+                    src={selectedStatus.mediaUrl}
+                    controls
+                    autoPlay
+                    playsInline
+                    preload="auto"
+                    onTimeUpdate={(event) => {
+                      const video = event.currentTarget;
+
+                      if (video.duration > 0) {
+                        setStatusProgress(
+                          (video.currentTime / video.duration) * 100
+                        );
+                      }
+                    }}
+                    onEnded={() => moveStatus(1)}
+                    className="h-full w-full object-contain"
+                  />
+                ) : selectedStatus.type === "image" ? (
                   <img
                     src={selectedStatus.mediaUrl}
                     alt="Shared status"
-                    className="max-h-full max-w-full rounded-lg object-contain"
+                    className="h-full w-full object-contain"
                   />
                 ) : (
-                  <div className="flex min-h-64 w-full items-center justify-center rounded-xl bg-gradient-to-br from-indigo-700 via-purple-700 to-pink-600 p-6">
+                  <div className="flex h-full w-full items-center justify-center overflow-y-auto bg-gradient-to-br from-indigo-700 via-purple-700 to-pink-600 p-6">
                     <p className="break-words text-center text-2xl font-bold sm:text-3xl">
                       {selectedStatus.text}
                     </p>
                   </div>
                 )}
               </div>
-              <div className="flex min-h-0 flex-1 items-center justify-center px-4 pb-5">
-                {/* Tumhara existing image/text status code yahin rahega */}
-              </div>
+
 
               {/* YAHAN BUTTON ADD KARO */}
               {String(selectedStatus.userId?._id) === String(authUser?._id) && (
