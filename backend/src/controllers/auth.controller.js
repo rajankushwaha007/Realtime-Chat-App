@@ -103,7 +103,13 @@ export const updateProfile = async (req, res) => {
 
     res.status(200).json(updatedUser);
   } catch (error) {
-    console.log("error in update profile:", error);
+    console.error("CLOUDINARY UPLOAD FAILED:", {
+      message: error.message,
+      http_code: error.http_code,
+      name: error.name,
+      response: error.error,
+      stack: error.stack,
+    });
     res.status(500).json({ message: "Internal server error" });
   }
 };
